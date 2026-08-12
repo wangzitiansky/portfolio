@@ -3,128 +3,262 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Portfolio · 投资组合</title>
-  <meta name="description" content="Personal Investment Portfolio Visualization">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <meta name="theme-color" content="#030611">
+  <title>Portfolio · 我的投资组合</title>
+  <meta name="description" content="高端个人投资组合与资产配置可视化">
   <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/design-tokens.css">
   <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
   <div class="pa-app">
-    <!-- Top Bar -->
     <header class="pa-header">
-      <div class="pa-header__brand">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="22" height="22"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-        <span>PORTFOLIO</span>
-      </div>
-      <div class="pa-header__meta">
+      <a class="pa-header__brand" href="#top" aria-label="返回投资组合首页">
+        <span class="pa-header__brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" width="20" height="20">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M7.5 14.5l3-3 2.1 1.9 4-4.4"></path>
+            <path d="M14.5 9h2.1v2.1"></path>
+          </svg>
+        </span>
+        <span class="pa-header__brand-copy">
+          <strong>PORTFOLIO</strong>
+          <small>PRIVATE CAPITAL</small>
+        </span>
+      </a>
+
+      <div class="pa-header__meta" aria-live="polite">
         <time class="pa-header__updated">数据更新于 --:--:--</time>
         <span class="pa-header__countdown">· 60s</span>
       </div>
+
       <div class="pa-header__actions">
         <button class="pa-btn pa-btn--icon" id="btn-refresh" aria-label="刷新数据">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"></path>
+          </svg>
         </button>
         <button class="pa-btn pa-btn--primary" id="btn-add">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
           添加资产
         </button>
-        <button class="pa-btn pa-btn--ghost pa-btn--sm" id="btn-import" style="color:var(--muted)">导入</button>
-        <button class="pa-btn pa-btn--ghost pa-btn--sm" id="btn-export" style="color:var(--muted)">导出</button>
-		<button class="pa-btn pa-btn--ghost pa-btn--sm" id="btn-record-nav" style="color:var(--muted)">记录资产</button>
+        <button class="pa-btn pa-btn--ghost pa-btn--sm" id="btn-import">导入</button>
+        <button class="pa-btn pa-btn--ghost pa-btn--sm" id="btn-export">导出</button>
+        <button class="pa-btn pa-btn--ghost pa-btn--sm" id="btn-record-nav">记录资产</button>
       </div>
     </header>
 
-    <!-- Hero -->
-    <section class="pa-hero">
-      <div class="pa-hero__subtitle">Investment Portfolio</div>
-      <div class="pa-hero__total" id="hero-total">¥0</div>
-      <div class="pa-hero__row">
-        <div class="pa-hero__pnl" id="hero-pnl">
-          <span class="pa-hero__pnl-val">+¥0</span>
-          <span class="pa-hero__pnl-pct">+0.0%</span>
-        </div>
-        <div class="pa-hero__meta" id="hero-meta">0 Assets · 0 Indices</div>
-      </div>
-    </section>
-
-    <!-- Portfolio Wheel -->
-    <section class="pa-wheel-section">
-      <div class="pa-chart-duo">
-        <div class="pa-chart-card">
-          <div class="pa-chart-card__title">资产分布 <span>按品种</span></div>
-          <div class="pa-chart-wrap">
-            <div class="pa-chart" id="chart-type"></div>
-            <div class="pa-wheel__center" id="type-center">
-              <div class="pa-wheel__center-label">总资产</div>
-              <div class="pa-wheel__center-value" id="type-value">¥0</div>
+    <main id="top">
+      <section class="pa-hero" aria-labelledby="hero-title">
+        <div class="pa-hero__image" aria-hidden="true"></div>
+        <div class="pa-hero__content">
+          <div class="pa-hero__eyebrow"><span></span> Personal capital overview</div>
+          <p class="pa-hero__subtitle" id="hero-title">组合总市值 · Investment Portfolio</p>
+          <div class="pa-hero__total" id="hero-total">¥0</div>
+          <div class="pa-hero__row">
+            <div class="pa-hero__pnl" id="hero-pnl">
+              <span class="pa-hero__pnl-val">+¥0</span>
+              <span class="pa-hero__pnl-pct">+0.0%</span>
             </div>
+            <div class="pa-hero__divider" aria-hidden="true"></div>
+            <div class="pa-hero__meta" id="hero-meta">0 Assets · 0 Indices</div>
           </div>
-          <div class="pa-chart-legend" id="legend-type"></div>
         </div>
-        <div class="pa-chart-card">
-          <div class="pa-chart-card__title">资产分布 <span>按底层指数</span></div>
-          <div class="pa-chart-wrap">
-            <div class="pa-chart" id="chart-index"></div>
-            <div class="pa-wheel__center" id="index-center">
-              <div class="pa-wheel__center-label">MY PORTFOLIO</div>
-              <div class="pa-wheel__center-value" id="index-value">¥0</div>
+        <div class="pa-hero__caption" aria-hidden="true">
+          <span>WALL STREET</span>
+          <small>NEW YORK · UNITED STATES</small>
+        </div>
+      </section>
+
+      <section class="pa-wheel-section" aria-label="投资组合分布">
+        <div class="pa-showcase-intro">
+          <div>
+            <span class="pa-section-index">01</span>
+            <p>Portfolio architecture</p>
+          </div>
+          <p>从单项持仓到真实底层标的，查看资金在组合中的结构与集中度。</p>
+        </div>
+
+        <div class="pa-showcase-duo">
+          <article class="pa-portfolio-feature pa-portfolio-feature--holdings" aria-labelledby="portfolio-visual-title">
+            <div class="pa-portfolio-feature__header">
+              <div>
+                <div class="pa-section-eyebrow"><span aria-hidden="true"></span> All holdings</div>
+                <h2 id="portfolio-visual-title">持仓资产分布</h2>
+                <p>按当前市值排序，展示全部真实持仓，不合并“其他”。</p>
+              </div>
+              <div class="pa-portfolio-feature__counter" aria-label="展示全部持仓">
+                <span>ALL</span>
+                <strong id="portfolio-count">0</strong>
+                <small>全部持仓</small>
+              </div>
             </div>
+
+            <div class="pa-portfolio-feature__body">
+              <div class="pa-portfolio-orbit">
+                <div class="pa-chart-wrap pa-chart-wrap--portfolio">
+                  <div class="pa-chart" id="chart-portfolio" aria-label="投资组合全部持仓权重轮盘"></div>
+                  <div class="pa-wheel__center pa-wheel__center--portfolio" id="portfolio-center">
+                    <div class="pa-wheel__center-kicker">Investment portfolio</div>
+                    <div class="pa-wheel__center-label">暂无持仓</div>
+                    <div class="pa-wheel__center-line" aria-hidden="true"></div>
+                    <div class="pa-wheel__center-code">ADD YOUR FIRST ASSET</div>
+                    <div class="pa-wheel__center-value">0%</div>
+                  </div>
+                </div>
+              </div>
+
+              <aside class="pa-portfolio-ranking" aria-label="持仓权重排名">
+                <div class="pa-portfolio-ranking__header">
+                  <span>持仓排名</span>
+                  <span>占比</span>
+                </div>
+                <div class="pa-portfolio-legend" id="legend-portfolio"></div>
+                <p class="pa-portfolio-ranking__hint">悬停或点击扇区，查看对应资产。所有持仓均按市值参与分布。</p>
+              </aside>
+            </div>
+          </article>
+
+          <article class="pa-portfolio-feature pa-portfolio-feature--index" aria-labelledby="index-visual-title">
+            <div class="pa-portfolio-feature__header">
+              <div>
+                <div class="pa-section-eyebrow"><span aria-hidden="true"></span> Index exposure</div>
+                <h2 id="index-visual-title">底层指数分布</h2>
+                <p>按跟踪标的汇总，用代表性场景呈现资金真正集中在哪里。</p>
+              </div>
+              <div class="pa-portfolio-feature__counter pa-portfolio-feature__counter--index" aria-label="按跟踪标的汇总">
+                <span>BY</span>
+                <strong>INDEX</strong>
+                <small>跟踪标的</small>
+              </div>
+            </div>
+
+            <div class="pa-portfolio-feature__body">
+              <div class="pa-portfolio-orbit">
+                <div class="pa-chart-wrap pa-chart-wrap--portfolio">
+                  <div class="pa-chart" id="chart-index" aria-label="底层指数图片权重轮盘"></div>
+                  <div class="pa-wheel__center pa-wheel__center--portfolio" id="index-center">
+                    <div class="pa-wheel__center-kicker">Underlying index</div>
+                    <div class="pa-wheel__center-label">暂无持仓</div>
+                    <div class="pa-wheel__center-line" aria-hidden="true"></div>
+                    <div class="pa-wheel__center-code">ADD YOUR FIRST ASSET</div>
+                    <div class="pa-wheel__center-value">0%</div>
+                  </div>
+                </div>
+              </div>
+
+              <aside class="pa-portfolio-ranking" aria-label="指数权重排名">
+                <div class="pa-portfolio-ranking__header">
+                  <span>指数排名</span>
+                  <span>占比</span>
+                </div>
+                <div class="pa-portfolio-legend" id="legend-index"></div>
+                <p class="pa-portfolio-ranking__hint">华尔街、NASDAQ 与 Omaha 场景均来自可署名授权素材。</p>
+              </aside>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="pa-cards-section pa-editorial-section pa-editorial-section--holdings" aria-labelledby="holdings-title">
+        <picture class="pa-editorial-section__media" aria-hidden="true">
+          <source srcset="images/portfolio/holdings-ledger-nyse.webp" type="image/webp">
+          <img src="images/portfolio/holdings-ledger-nyse.jpg" alt="" loading="lazy" decoding="async">
+        </picture>
+        <div class="pa-editorial-section__caption" aria-hidden="true">11 WALL STREET · NEW YORK</div>
+        <div class="pa-cards-header pa-editorial-section__header">
+          <div>
+            <span class="pa-section-index">02</span>
+            <h2 class="pa-cards-title" id="holdings-title">持仓明细 <small>Holdings ledger</small></h2>
           </div>
-          <div class="pa-chart-legend" id="legend-index"></div>
+          <span class="pa-cards-count" id="cards-count">0 Assets</span>
         </div>
-      </div>
-    </section>
-
-    <!-- Investment Cards -->
-    <section class="pa-cards-section">
-      <div class="pa-cards-header">
-        <h2 class="pa-cards-title">Holdings</h2>
-        <span class="pa-cards-count" id="cards-count">0 Assets</span>
-      </div>
-      <div class="pa-cards-grid" id="cards-grid"></div>
-      <div class="pa-cards-empty" id="cards-empty" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" width="40" height="40"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-        <p>添加你的第一笔资产</p>
-        <button class="pa-btn pa-btn--primary" id="btn-add-first">开始构建组合</button>
-      </div>
-    </section>
-
-    <!-- Index Summary -->
-    <section class="pa-cards-section" id="summary-section" style="display:none">
-      <div class="pa-cards-header">
-        <h2 class="pa-cards-title">指数汇总</h2>
-        <span class="pa-cards-count" id="summary-count">0 Indices</span>
-      </div>
-      <div class="pa-cards-grid" id="summary-grid"></div>
-    </section>
-
-	<!-- Total Asset Trend -->
-    <section class="pa-nav-section">
-      <div class="pa-chart-card">
-		<div class="pa-chart-card__title">总资产走势 <span>每日组合市值（含出入金影响）</span></div>
-        <div class="pa-chart-wrap pa-chart-wrap--nav">
-          <div class="pa-chart" id="chart-nav"></div>
+        <div class="pa-cards-grid pa-editorial-section__content" id="cards-grid"></div>
+        <div class="pa-cards-empty" id="cards-empty" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" width="40" height="40" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M12 6v6l4 2"></path>
+          </svg>
+          <p>添加你的第一笔资产</p>
+          <button class="pa-btn pa-btn--primary" id="btn-add-first">开始构建组合</button>
         </div>
-        <div class="pa-nav-empty" id="nav-empty" style="display:none">
-		  <span>数据不足，至少需要 2 天的资产记录</span>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Footer -->
+      <section class="pa-cards-section pa-editorial-section pa-editorial-section--summary" id="summary-section" style="display:none" aria-labelledby="summary-title">
+        <picture class="pa-editorial-section__media" aria-hidden="true">
+          <source srcset="images/portfolio/index-summary-manhattan.webp" type="image/webp">
+          <img src="images/portfolio/index-summary-manhattan.jpg" alt="" loading="lazy" decoding="async">
+        </picture>
+        <div class="pa-editorial-section__caption" aria-hidden="true">LOWER MANHATTAN · MARKET EXPOSURE</div>
+        <div class="pa-cards-header pa-editorial-section__header">
+          <div>
+            <span class="pa-section-index">03</span>
+            <h2 class="pa-cards-title" id="summary-title">指数汇总 <small>Exposure summary</small></h2>
+          </div>
+          <span class="pa-cards-count" id="summary-count">0 Indices</span>
+        </div>
+        <div class="pa-cards-grid pa-editorial-section__content" id="summary-grid"></div>
+      </section>
+
+      <section class="pa-nav-section pa-editorial-section pa-editorial-section--nav" aria-labelledby="nav-title">
+        <picture class="pa-editorial-section__media" aria-hidden="true">
+          <source srcset="images/portfolio/nav-brooklyn-bridge.webp" type="image/webp">
+          <img src="images/portfolio/nav-brooklyn-bridge.jpg" alt="" loading="lazy" decoding="async">
+        </picture>
+        <div class="pa-editorial-section__caption" aria-hidden="true">BROOKLYN BRIDGE · CAPITAL OVER TIME</div>
+        <div class="pa-chart-card pa-chart-card--nav pa-editorial-section__content">
+          <div class="pa-chart-card__title">
+            <div>
+              <span class="pa-section-index">04</span>
+              <h2 id="nav-title">总资产走势</h2>
+            </div>
+            <p>每日组合市值 · 包含出入金影响</p>
+          </div>
+          <div class="pa-chart-wrap pa-chart-wrap--nav">
+            <div class="pa-chart" id="chart-nav"></div>
+          </div>
+          <div class="pa-nav-empty" id="nav-empty" style="display:none">
+            <span>数据不足，至少需要 2 天的资产记录</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
     <footer class="pa-footer">
-      <span>数据本地存储 · Go 后端 · SQLite</span>
-      <span>行情数据源 腾讯/天天基金 · 汇率 open.er-api.com</span>
+      <div class="pa-footer__main">
+        <div>
+          <strong>PRIVATE PORTFOLIO</strong>
+          <span>数据本地存储 · Go 后端 · SQLite</span>
+        </div>
+        <div class="pa-footer__data">行情数据：腾讯 / 天天基金 · 汇率：open.er-api.com</div>
+      </div>
+
+      <details class="pa-credits">
+        <summary>图片来源与许可</summary>
+        <div class="pa-credits__panel">
+          <p>图片均已本地化，并进行了裁切、压暗和主题色调处理；相关图片衍生版本沿用原许可。</p>
+          <ul>
+            <li><a href="https://commons.wikimedia.org/wiki/File:Wall_Street_-_New_York_Stock_Exchange.jpg" target="_blank" rel="noopener noreferrer">Wall Street / NYSE</a> — Carlos Delgado，CC BY-SA 3.0</li>
+            <li><a href="https://commons.wikimedia.org/wiki/File:NewYorkStockExchangeWallStreetManhattan.jpg" target="_blank" rel="noopener noreferrer">NYSE 夜景</a> — Massimo Catarinella，CC BY-SA 3.0</li>
+            <li><a href="https://commons.wikimedia.org/wiki/File:NASDAQ_Times_Square_-_panoramio.jpg" target="_blank" rel="noopener noreferrer">NASDAQ Times Square</a> — Roman SUZUKI，CC BY 3.0</li>
+            <li><a href="https://commons.wikimedia.org/wiki/File:OmahaKiewitPlaza.jpg" target="_blank" rel="noopener noreferrer">Omaha Kiewit Plaza</a> — JonClee86，CC BY-SA 3.0</li>
+            <li><a href="https://commons.wikimedia.org/wiki/File:11_Wall_Street.jpg" target="_blank" rel="noopener noreferrer">11 Wall Street / NYSE</a> — Arun De Joe，CC BY-SA 3.0</li>
+            <li><a href="https://commons.wikimedia.org/wiki/File:Lower_Manhattan_night_skyline_from_Brooklyn.jpg" target="_blank" rel="noopener noreferrer">Lower Manhattan night skyline</a> — LWYang，CC BY 2.0</li>
+            <li><a href="https://commons.wikimedia.org/wiki/File:Brooklyn_Bridge_at_Night_with_Lower_Manhattan_Skyline.jpg" target="_blank" rel="noopener noreferrer">Brooklyn Bridge at Night</a> — Joseph Zarro，CC BY-SA 4.0</li>
+          </ul>
+          <p class="pa-credits__disclaimer">品牌标识仅用于个人投资看板中的识别用途；本站与 S&amp;P、Nasdaq、Berkshire Hathaway 等相关机构不存在关联、授权或背书关系。</p>
+        </div>
+      </details>
     </footer>
   </div>
 
-	<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@5.2.0/dist/lightweight-charts.standalone.production.js"
-	  integrity="sha384-q1KYLSKHgBnW5tWYGGR8+6YV4/iPy31dILoF2I1OD7XiVUvHEp/TaxIQVmB0j3R2" crossorigin="anonymous">
-  </script>
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@5.2.0/dist/lightweight-charts.standalone.production.js"
+    integrity="sha384-q1KYLSKHgBnW5tWYGGR8+6YV4/iPy31dILoF2I1OD7XiVUvHEp/TaxIQVmB0j3R2" crossorigin="anonymous"></script>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

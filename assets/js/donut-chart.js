@@ -1,281 +1,653 @@
-// donut-chart.js — 纯 SVG 环形图，替代 ECharts 饼图
-//
-// 用法（与 renderWheel 签名兼容）：
-//   renderDonut(el, data, centerId)
-//   el        — 图表容器（如 #chart-type），SVG 渲染其中
-//   data      — [{ name, value }, ...]
-//   centerId  — 中央卡片 ID，hover 扇区时更新
+// 高端投资组合轮盘：真实 SVG 环形扇区、图片裁切与联动交互
 
 import { fmtMoney } from './compute.js';
 import { COLORS } from './chart.js';
 
-/** 由 hex 颜色生成 [亮色, 暗色] 渐变对 */
-function gradientPair(hex) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const dr = Math.round(r * 0.60);
-  const dg = Math.round(g * 0.60);
-  const db = Math.round(b * 0.60);
-  const dark = '#' + [dr, dg, db].map(v => v.toString(16).padStart(2, '0')).join('');
-  return [hex, dark];
-}
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const XLINK_NS = 'http://www.w3.org/1999/xlink';
+const VIEWBOX_SIZE = 440;
+const CX = VIEWBOX_SIZE / 2;
+const CY = VIEWBOX_SIZE / 2;
+const OUTER_RADIUS = 196;
+const INNER_RADIUS = 75;
+const HOLDING_LABEL_THRESHOLD = 8;
+const INDEX_LABEL_THRESHOLD = 4.5;
+const PRIMARY_SECTOR_ANGLE = 0; // 最大扇区居右：为照片和中心信息留出更舒展的展示空间。
 
-const svgNS = 'http://www.w3.org/2000/svg';
-let _instanceId = 0;
+let instanceId = 0;
+
+const HOLDING_COLORS = [
+  '#2878FF', '#E23145', '#7C3AED', '#F07B16', '#11A7A3',
+  '#D9A13A', '#4E56D8', '#35A965', '#D7438C', '#1B91C8',
+];
+
+const INDEX_THEMES = [
+  {
+    id: 'sp500',
+    match: ['标普500', '标普 500', 's&p500', 's&p 500', 'sp500', 'sp 500'],
+    name: '标普500',
+    code: 'S&P 500',
+    brand: 'S&P',
+    image: 'images/portfolio/sp500-nyse.jpg',
+    colors: ['#2C72F0', '#071A57'],
+    imageOpacity: 0.54,
+  },
+  {
+    id: 'nasdaq',
+    match: ['纳斯达克100', '纳斯达克 100', '纳指100', '纳指 100', 'nasdaq100', 'nasdaq 100', 'ndx'],
+    name: '纳斯达克100',
+    code: 'NASDAQ 100',
+    brand: 'NASDAQ',
+    logoSrc: 'images/portfolio/nasdaq-logo.svg',
+    image: 'images/portfolio/nasdaq-times-square.jpg',
+    colors: ['#7B4DFF', '#261267'],
+    imageOpacity: 0.52,
+  },
+  {
+    id: 'berkshire',
+    match: ['伯克希尔', 'berkshire', 'brk.b', 'brkb'],
+    name: '伯克希尔',
+    code: 'BRK.B',
+    brand: 'BRK.B',
+    image: 'images/portfolio/berkshire-omaha.jpg',
+    colors: ['#D6A447', '#563314'],
+    imageOpacity: 0.48,
+  },
+];
 
 /**
- * 在指定容器内渲染 SVG 环形图，同时填充对应的图例元素。
- *
- * @param {Element}  el         图表容器 (#chart-type)
- * @param {Array}    data       [{ name, value }, ...]
- * @param {string}   centerId   中央卡片 ID ('type-center')
- * @param {string}   legendId   图例容器 ID ('legend-type')，可选
+ * 将持仓按市值从高到低整理，并只保留真正的 Top N。
+ * 未进入 Top N 的项目不会被聚合为“其他”。
  */
-export function renderDonut(el, data, centerId, legendId) {
-  if (!el) return;
-	el.replaceChildren();
-	const legendEl = legendId ? document.getElementById(legendId) : null;
-	if (legendEl) legendEl.replaceChildren();
-	const center = centerId ? document.getElementById(centerId) : null;
-	if (center) {
-		const label = center.querySelector('.pa-wheel__center-label');
-		const value = center.querySelector('.pa-wheel__center-value');
-		if (label) label.textContent = '暂无数据';
-		if (value) value.textContent = fmtMoney(0);
-	}
+export function buildPortfolioSeries(rows, limit = null) {
+  const maxItems = Number.isFinite(Number(limit)) && Number(limit) > 0
+    ? Math.max(1, Number(limit)) : Number.POSITIVE_INFINITY;
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => ({
+      id: row.id || row.code || row.name || '',
+      name: row.name || row.code || '未命名资产',
+      code: row.code || '',
+      value: Number(row.marketValueCNY ?? row.marketValue ?? 0),
+      index: row.index || '',
+    }))
+    .filter((item) => Number.isFinite(item.value) && item.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, maxItems);
+}
 
-  const total = data.reduce((s, d) => s + d.value, 0);
-  if (total <= 0) return;
+/**
+ * @param {Element} el 图表容器
+ * @param {Array} data [{ name, code?, value, color?, backgroundImage?, logoSrc? }]
+ * @param {string} centerId 中央卡片 ID
+ * @param {string} legendId 图例容器 ID
+ * @param {object} options { variant, mode, totalValue, maxItems, defaultSelection }
+ */
+export function renderDonut(el, data, centerId, legendId, options = {}) {
+  if (!el) return null;
 
-  const uid = ++_instanceId;  // 唯一实例 ID，避免多图表时 SVG defs ID 冲突
+  const uid = ++instanceId;
+  const mode = options.mode === 'index' ? 'index' : 'holdings';
+  const isShowcase = options.variant === 'showcase';
+  const maxItems = Number.isFinite(Number(options.maxItems)) && Number(options.maxItems) > 0
+    ? Math.max(1, Number(options.maxItems)) : Number.POSITIVE_INFINITY;
+  const safeData = (Array.isArray(data) ? data : [])
+    .filter((item) => Number.isFinite(Number(item?.value)) && Number(item.value) > 0)
+    .sort((a, b) => Number(b.value) - Number(a.value))
+    .slice(0, maxItems);
 
-  // 预处理：排序 + 计算百分比
-  const main = data.map((d, i) => ({
-    name: d.name || '?',
-    value: d.value,
-    pct: (d.value / total) * 100,
-    color: gradientPair(COLORS[i % COLORS.length]),
-  }));
-  main.sort((a, b) => b.value - a.value);
+  el.replaceChildren();
+  el.classList.toggle('pa-chart--showcase', isShowcase);
+  el.classList.toggle('pa-chart--image-wheel', mode === 'index');
 
-  // ── 清空容器 ──
-  el.classList.add('pa-chart');
+  const legendEl = legendId ? document.getElementById(legendId) : null;
+  if (legendEl) legendEl.replaceChildren();
 
-  // ── 常量 ──
-  const CX = 200, CY = 200, R = 132, SW = 84;
-  const CIRCUM = 2 * Math.PI * R;
-  const GAP = 1.0;
+  const displayedTotal = safeData.reduce((sum, item) => sum + Number(item.value), 0);
+  const requestedTotal = Number(options.totalValue);
+  const total = Number.isFinite(requestedTotal) && requestedTotal >= displayedTotal
+    ? requestedTotal
+    : displayedTotal;
 
-  // ── 构建 SVG ──
-  const svg = document.createElementNS(svgNS, 'svg');
-  svg.setAttribute('viewBox', '0 0 400 400');
-  svg.setAttribute('class', 'pa-donut-svg');
-  svg.style.width = '100%';
-  svg.style.height = '100%';
+  const items = safeData.map((item, index) => normalizeItem(item, index, total, mode));
+  el.classList.toggle('pa-chart--image-wheel', items.some((item) => Boolean(item.backgroundImage)));
+  const defaultItem = items[0] || null;
+  updateCenter(centerId, defaultItem, total, { showcase: isShowcase });
 
-  // defs: 阴影 + 渐变
-  const defs = document.createElementNS(svgNS, 'defs');
+  if (total <= 0 || items.length === 0) {
+    renderEmptyWheel(el, centerId, legendEl, { showcase: isShowcase });
+    return { items: [], svg: null };
+  }
 
-  // 文字阴影滤镜
-  const shadowF = document.createElementNS(svgNS, 'filter');
-  shadowF.setAttribute('id', `pa-dn-shadow-${uid}`);
-  shadowF.setAttribute('x', '-50%'); shadowF.setAttribute('y', '-50%');
-  shadowF.setAttribute('width', '200%'); shadowF.setAttribute('height', '200%');
-  shadowF.innerHTML =
-    '<feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#000" flood-opacity="0.6"/>';
-  defs.appendChild(shadowF);
-
-  // 扇区渐变
-  main.forEach((d, i) => {
-    const g = document.createElementNS(svgNS, 'linearGradient');
-    g.id = `pa-dn-grad-${uid}-${i}`;
-    g.setAttribute('x1', '0%'); g.setAttribute('y1', '0%');
-    g.setAttribute('x2', '100%'); g.setAttribute('y2', '100%');
-    g.innerHTML =
-      `<stop offset="0%"   stop-color="${d.color[0]}"/>` +
-      `<stop offset="100%" stop-color="${d.color[1]}"/>`;
-    defs.appendChild(g);
+  const svg = svgEl('svg', {
+    viewBox: `0 0 ${VIEWBOX_SIZE} ${VIEWBOX_SIZE}`,
+    class: 'pa-donut-svg',
+    role: 'group',
+    'aria-label': mode === 'index' ? '按跟踪标的划分的投资组合' : '全部持仓投资组合',
   });
+  const title = svgEl('title');
+  title.textContent = mode === 'index' ? '底层指数权重轮盘' : '全部持仓权重轮盘';
+  svg.appendChild(title);
 
+  const defs = createDefs(uid, items);
   svg.appendChild(defs);
 
-  // 底环（暗衬底，显露扇区间 1px 黑缝）
-  const base = document.createElementNS(svgNS, 'circle');
-  base.setAttribute('cx', CX); base.setAttribute('cy', CY);
-  base.setAttribute('r', R); base.setAttribute('fill', 'none');
-  base.setAttribute('stroke', '#0E0E1A');
-  base.setAttribute('stroke-width', SW);
-  svg.appendChild(base);
+  const basePath = svgEl('path', {
+    d: describeFullAnnulus(CX, CY, OUTER_RADIUS, INNER_RADIUS),
+    class: 'pa-donut-base',
+    fill: `url(#pa-base-${uid})`,
+    'fill-rule': 'evenodd',
+  });
+  svg.appendChild(basePath);
 
-  // 内外亮边（dual-ring 质感）
-  for (const [r, op] of [[90, 0.04], [174, 0.06]]) {
-    const edge = document.createElementNS(svgNS, 'circle');
-    edge.setAttribute('cx', CX); edge.setAttribute('cy', CY);
-    edge.setAttribute('r', r); edge.setAttribute('fill', 'none');
-    edge.setAttribute('stroke', `rgba(255,255,255,${op})`);
-    edge.setAttribute('stroke-width', '1.5');
-    svg.appendChild(edge);
-  }
+  const guide = svgEl('circle', {
+    cx: CX,
+    cy: CY,
+    r: OUTER_RADIUS + 3,
+    class: 'pa-donut-outer-guide',
+    fill: 'none',
+  });
+  svg.appendChild(guide);
 
-  // 扇区组（rotate -90° 从顶部 12 点方向开始）
-  const sectorsG = document.createElementNS(svgNS, 'g');
-  sectorsG.setAttribute('transform', 'rotate(-90 200 200)');
-  sectorsG.setAttribute('class', 'pa-donut-sectors');
+  const sectorsLayer = svgEl('g', { class: 'pa-donut-sectors' });
+  svg.appendChild(sectorsLayer);
 
-  // 标签组
-  const labelsG = document.createElementNS(svgNS, 'g');
-  labelsG.setAttribute('filter', `url(#pa-dn-shadow-${uid})`);
+  // 最大项锚定在右侧；其余扇区逆时针展开，让主图片获得完整的横向展示空间。
+  const firstSpan = items[0].pct * 3.6;
+  const direction = -1;
+  let cursorAngle = PRIMARY_SECTOR_ANGLE + firstSpan / 2;
+  const interactiveItems = [];
 
-  let cumulative = 0;
+  items.forEach((item, index) => {
+    const span = item.pct * 3.6;
+    const gap = sectorGap(span);
+    const startAngle = cursorAngle - gap / 2;
+    const endAngle = cursorAngle + direction * span + gap / 2;
+    const midAngle = cursorAngle + direction * span / 2;
+    cursorAngle += direction * span;
 
-  main.forEach((d, i) => {
-    const startPct = cumulative;
-    const centerPct = startPct + d.pct / 2;
+    if ((direction > 0 && endAngle <= startAngle) || (direction < 0 && endAngle >= startAngle)) return;
 
-    const dashLen = Math.max(0.5, (d.pct / 100) * CIRCUM - GAP);
-    const offset = -(startPct / 100) * CIRCUM;
+    const sectorPath = describeAnnularSector(CX, CY, OUTER_RADIUS, INNER_RADIUS, startAngle, endAngle, direction);
+    const group = svgEl('g', {
+      class: `pa-donut-sector-group pa-donut-sector-group--${item.themeId || 'holding'}`,
+      'data-index': index,
+    });
+    group.style.setProperty('--sector-color', item.colors[0]);
 
-    // 主扇区
-    const circle = document.createElementNS(svgNS, 'circle');
-    circle.setAttribute('cx', CX); circle.setAttribute('cy', CY);
-    circle.setAttribute('r', R); circle.setAttribute('fill', 'none');
-    circle.setAttribute('stroke', `url(#pa-dn-grad-${uid}-${i})`);
-    circle.setAttribute('stroke-width', SW);
-    circle.setAttribute('stroke-dasharray', `${dashLen.toFixed(2)} ${CIRCUM.toFixed(2)}`);
-    circle.setAttribute('stroke-dashoffset', offset.toFixed(2));
-    circle.setAttribute('stroke-linecap', 'butt');
-    circle.classList.add('pa-donut-sector');
-    circle.dataset.index = i;
-    if (i === 0) {
-      // 标记默认项，供 hover leave 恢复
-      circle.dataset.default = 'true';
-      circle.dataset.name = d.name;
-      circle.dataset.value = fmtMoney(d.value);
+    if (item.backgroundImage) {
+      const image = svgEl('image', {
+        x: 18,
+        y: 18,
+        width: VIEWBOX_SIZE - 36,
+        height: VIEWBOX_SIZE - 36,
+        preserveAspectRatio: item.imagePosition || 'xMidYMid slice',
+        opacity: item.imageOpacity,
+        class: 'pa-donut-sector-image',
+        'clip-path': `url(#pa-clip-${uid}-${index})`,
+      });
+      image.setAttributeNS(XLINK_NS, 'href', item.backgroundImage);
+      image.setAttribute('href', item.backgroundImage);
+      image.addEventListener('error', () => image.remove(), { once: true });
+      group.appendChild(image);
     }
-    sectorHover(circle, d, centerId, total);
-    sectorsG.appendChild(circle);
 
-    // 内层半透明覆盖（增加立体感）
-    const inner = document.createElementNS(svgNS, 'circle');
-    inner.setAttribute('cx', CX); inner.setAttribute('cy', CY);
-    inner.setAttribute('r', R); inner.setAttribute('fill', 'none');
-    inner.setAttribute('stroke', 'rgba(255,255,255,0.07)');
-    inner.setAttribute('stroke-width', SW * 0.62);
-    inner.setAttribute('stroke-dasharray', `${dashLen.toFixed(2)} ${CIRCUM.toFixed(2)}`);
-    inner.setAttribute('stroke-dashoffset', offset.toFixed(2));
-    inner.setAttribute('stroke-linecap', 'butt');
-    inner.style.pointerEvents = 'none';
-    sectorsG.appendChild(inner);
+    const colorLayer = svgEl('path', {
+      d: sectorPath,
+      class: 'pa-donut-sector-color',
+      fill: `url(#pa-sector-${uid}-${index})`,
+    });
+    group.appendChild(colorLayer);
 
-    // 扇区内文本标签
-    const angleDeg = centerPct / 100 * 360;
-    const angleRad = (angleDeg - 90) * Math.PI / 180;
-    const lx = +(CX + R * Math.cos(angleRad)).toFixed(1);
-    const ly = +(CY + R * Math.sin(angleRad)).toFixed(1);
+    const sheen = svgEl('path', {
+      d: sectorPath,
+      class: 'pa-donut-sector-sheen',
+      fill: `url(#pa-sheen-${uid})`,
+    });
+    group.appendChild(sheen);
 
-    const isSmall = d.pct < 6;
-    const shortName = d.name.length > 8 ? d.name.slice(0, 7) + '…' : d.name;
+    const hitPath = svgEl('path', {
+      d: sectorPath,
+      class: 'pa-donut-sector',
+      fill: 'transparent',
+      tabindex: '0',
+      role: 'button',
+      'aria-pressed': 'false',
+      'aria-label': `${item.name}${item.code ? ` ${item.code}` : ''}，占投资组合 ${item.pct.toFixed(1)}%`,
+    });
+    const sectorTitle = svgEl('title');
+    sectorTitle.textContent = `${item.name}${item.code ? ` · ${item.code}` : ''} · ${item.pct.toFixed(1)}% · ${fmtMoney(item.value)}`;
+    hitPath.appendChild(sectorTitle);
+    group.appendChild(hitPath);
 
-    const text = document.createElementNS(svgNS, 'text');
-    text.setAttribute('x', lx); text.setAttribute('y', ly);
-    text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('dominant-baseline', 'central');
-    text.setAttribute('fill', '#fff');
-    text.style.pointerEvents = 'none';
+    const label = createSectorLabel(item, midAngle, mode);
+    if (label) group.appendChild(label);
 
-    if (isSmall) {
-	  const pctSpan = document.createElementNS(svgNS, 'tspan');
-	  pctSpan.setAttribute('x', lx);
-	  pctSpan.setAttribute('dy', '0');
-	  pctSpan.setAttribute('font-weight', '800');
-	  pctSpan.setAttribute('font-size', '14');
-	  pctSpan.textContent = `${d.pct.toFixed(1)}%`;
-	  text.appendChild(pctSpan);
-    } else {
-	  const nameSpan = document.createElementNS(svgNS, 'tspan');
-	  nameSpan.setAttribute('x', lx);
-	  nameSpan.setAttribute('dy', '-12');
-	  nameSpan.setAttribute('font-weight', '700');
-	  nameSpan.setAttribute('font-size', shortName.length > 6 ? '11' : '12');
-	  nameSpan.textContent = shortName;
-	  const pctSpan = document.createElementNS(svgNS, 'tspan');
-	  pctSpan.setAttribute('x', lx);
-	  pctSpan.setAttribute('dy', '14');
-	  pctSpan.setAttribute('fill', '#B0B0C0');
-	  pctSpan.setAttribute('font-size', '9');
-	  pctSpan.textContent = `${d.pct.toFixed(1)}%`;
-	  text.append(nameSpan, pctSpan);
-    }
-    labelsG.appendChild(text);
-
-    cumulative += d.pct;
+    sectorsLayer.appendChild(group);
+    interactiveItems.push({ item, group, target: hitPath, midAngle, index });
   });
 
-  svg.appendChild(sectorsG);
-  svg.appendChild(labelsG);
+  const centerHalo = svgEl('circle', {
+    cx: CX,
+    cy: CY,
+    r: INNER_RADIUS - 4,
+    class: 'pa-donut-center-halo',
+    fill: 'none',
+  });
+  svg.appendChild(centerHalo);
   el.appendChild(svg);
 
-  // 默认选中第一大项，更新中央卡
-  const defaultItem = main.length > 0 ? main[0] : null;
-  if (centerId && defaultItem) {
-    updateCenter(centerId, defaultItem, total);
-  }
-
-  // ── 图例 ──
-  if (legendId) {
-    if (legendEl) {
-	  legendEl.replaceChildren();
-	  for (const d of main) {
-		const itemEl = document.createElement('div');
-		itemEl.className = 'pa-chart-legend__item';
-		const dot = document.createElement('span');
-		dot.className = 'pa-chart-legend__dot';
-		dot.style.background = d.color[0];
-		const name = document.createElement('span');
-		name.textContent = d.name;
-		const pct = document.createElement('span');
-		pct.className = 'pa-chart-legend__pct';
-		pct.textContent = `${d.pct.toFixed(1)}%`;
-		itemEl.append(dot, name, pct);
-		legendEl.appendChild(itemEl);
-	  }
-    }
-  }
-
-  return { items: main, svg };
-}
-
-/** 扇区 hover 交互 */
-function sectorHover(circle, item, centerId, total) {
-  if (!centerId) return;
-
-  circle.addEventListener('mouseenter', () => {
-    updateCenter(centerId, item, total);
+  const legendItems = renderLegend(legendEl, items);
+  bindWheelInteractions({
+    svg,
+    sectorsLayer,
+    interactiveItems,
+    legendItems,
+    centerId,
+    total,
+    defaultItem,
+    isShowcase,
   });
 
-  circle.addEventListener('mouseleave', () => {
-    // 恢复默认 — 在当前 SVG 内查找默认项
-    const svg = circle.closest('svg');
-    if (!svg) return;
-    const def = svg.querySelector('.pa-donut-sector[data-default]');
-    if (def) {
-      const label = document.getElementById(centerId)?.querySelector('.pa-wheel__center-label');
-      const value = document.getElementById(centerId)?.querySelector('.pa-wheel__center-value');
-      if (label) label.textContent = def.dataset.name || '';
-      if (value) value.textContent = def.dataset.value || '';
-    }
-  });
+  return { items, svg };
 }
 
-/** 更新中央卡片内容 */
-function updateCenter(centerId, item, total) {
-  const card = document.getElementById(centerId);
+function normalizeItem(item, index, total, mode) {
+  const rawName = String(item.name || item.code || '未命名资产');
+  const rawCode = String(item.code || '');
+  const value = Number(item.value);
+  const indexTheme = mode === 'index'
+    ? resolveIndexTheme(rawName, rawCode)
+    : resolveIndexTheme(String(item.index || ''), `${rawName} ${rawCode}`);
+  const isHolding = mode === 'holdings';
+  const baseColor = Array.isArray(item.color)
+    ? item.color[0]
+    : typeof item.color === 'string'
+      ? item.color
+      : mode === 'holdings'
+        ? HOLDING_COLORS[index % HOLDING_COLORS.length]
+        : COLORS[index % COLORS.length];
+  const colors = Array.isArray(item.color)
+    ? item.color
+    : isHolding ? gradientPair(baseColor) : indexTheme?.colors || gradientPair(baseColor);
+  const holdingImageOpacity = indexTheme
+    ? Math.min(0.38, Math.max(0.28, Number(indexTheme.imageOpacity || 0.5) * 0.68))
+    : item.backgroundImage ? 0.34 : 0;
+
+  return {
+    ...item,
+    name: mode === 'index' ? indexTheme?.name || rawName : rawName,
+    code: item.code || (mode === 'index' ? indexTheme?.code : '') || '',
+    value,
+    pct: total > 0 ? value / total * 100 : 0,
+    colors,
+    themeId: indexTheme?.id || '',
+    brand: item.brand || (mode === 'index' ? indexTheme?.brand : '') || createMonogram(rawName),
+    backgroundImage: item.backgroundImage || indexTheme?.image || '',
+    logoSrc: mode === 'index' ? item.logoSrc || indexTheme?.logoSrc || '' : '',
+    imageOpacity: Number(item.imageOpacity ?? (isHolding ? holdingImageOpacity : indexTheme?.imageOpacity) ?? 0.5),
+    imagePosition: item.imagePosition || indexTheme?.imagePosition || 'xMidYMid slice',
+  };
+}
+
+function resolveIndexTheme(name, code) {
+  const haystack = `${name} ${code}`.toLowerCase().replace(/[\s_-]+/g, '');
+  return INDEX_THEMES.find((theme) => theme.match.some((keyword) => (
+    haystack.includes(keyword.toLowerCase().replace(/[\s_-]+/g, ''))
+  ))) || null;
+}
+
+function createDefs(uid, items) {
+  const defs = svgEl('defs');
+
+  const baseGradient = svgEl('radialGradient', { id: `pa-base-${uid}`, cx: '50%', cy: '44%', r: '62%' });
+  baseGradient.append(
+    stop('0%', '#141E40', 0.94),
+    stop('66%', '#091128', 0.98),
+    stop('100%', '#020611', 1),
+  );
+  defs.appendChild(baseGradient);
+
+  const sheen = svgEl('linearGradient', { id: `pa-sheen-${uid}`, x1: '12%', y1: '2%', x2: '76%', y2: '100%' });
+  sheen.append(
+    stop('0%', '#FFFFFF', 0.28),
+    stop('26%', '#FFFFFF', 0.07),
+    stop('58%', '#FFFFFF', 0),
+    stop('100%', '#000000', 0.24),
+  );
+  defs.appendChild(sheen);
+
+  items.forEach((item, index) => {
+    const gradient = svgEl('radialGradient', {
+      id: `pa-sector-${uid}-${index}`,
+      cx: '36%',
+      cy: '26%',
+      r: '82%',
+    });
+    const imageFactor = item.backgroundImage ? 0.42 : 0.96;
+    gradient.append(
+      stop('0%', item.colors[0], imageFactor),
+      stop('55%', item.colors[0], item.backgroundImage ? 0.38 : 0.9),
+      stop('100%', item.colors[1], item.backgroundImage ? 0.68 : 1),
+    );
+    defs.appendChild(gradient);
+
+    const clip = svgEl('clipPath', { id: `pa-clip-${uid}-${index}` });
+    const span = item.pct * 3.6;
+    const firstSpan = items[0].pct * 3.6;
+    const previous = items.slice(0, index).reduce((sum, current) => sum + current.pct * 3.6, 0);
+    const rawStart = PRIMARY_SECTOR_ANGLE + firstSpan / 2 - previous;
+    const gap = sectorGap(span);
+    clip.appendChild(svgEl('path', {
+      d: describeAnnularSector(CX, CY, OUTER_RADIUS, INNER_RADIUS, rawStart - gap / 2, rawStart - span + gap / 2, -1),
+    }));
+    defs.appendChild(clip);
+  });
+
+  return defs;
+}
+
+function createSectorLabel(item, angle, mode) {
+  const threshold = mode === 'index' ? INDEX_LABEL_THRESHOLD : HOLDING_LABEL_THRESHOLD;
+  if (item.pct < threshold) return null;
+
+  const radius = item.pct > 48 ? 137 : 140;
+  const position = polarToCartesian(CX, CY, radius, angle);
+  const group = svgEl('g', {
+    class: `pa-donut-label pa-donut-label--${mode}`,
+    transform: `translate(${position.x} ${position.y})`,
+    'aria-hidden': 'true',
+  });
+
+  const showBrand = mode === 'index' && item.pct >= 14;
+  let textOffset = showBrand ? 17 : -2;
+  if (showBrand) group.appendChild(createBrandBadge(item));
+
+  const name = svgEl('text', {
+    x: 0,
+    y: textOffset,
+    class: 'pa-donut-label__name',
+    'text-anchor': 'middle',
+  });
+  name.textContent = abbreviate(item.name, item.pct >= 20 ? 9 : 6);
+  group.appendChild(name);
+
+  if (item.code && item.pct >= 10) {
+    const code = svgEl('text', {
+      x: 0,
+      y: textOffset + 15,
+      class: 'pa-donut-label__code',
+      'text-anchor': 'middle',
+    });
+    code.textContent = item.code;
+    group.appendChild(code);
+  }
+
+  const pct = svgEl('text', {
+    x: 0,
+    y: textOffset + (item.code && item.pct >= 10 ? 40 : 25),
+    class: 'pa-donut-label__pct',
+    'text-anchor': 'middle',
+  });
+  pct.textContent = `${item.pct.toFixed(1)}%`;
+  group.appendChild(pct);
+  return group;
+}
+
+function createBrandBadge(item) {
+  const group = svgEl('g', { class: 'pa-donut-brand', transform: 'translate(0 -31)' });
+  const circle = svgEl('circle', { cx: 0, cy: 0, r: 17, class: 'pa-donut-brand__disc' });
+  group.appendChild(circle);
+
+  if (item.logoSrc) {
+    const image = svgEl('image', { x: -11, y: -11, width: 22, height: 22, preserveAspectRatio: 'xMidYMid meet' });
+    image.setAttributeNS(XLINK_NS, 'href', item.logoSrc);
+    image.setAttribute('href', item.logoSrc);
+    image.addEventListener('error', () => {
+      image.remove();
+      group.appendChild(createBrandText(item.brand));
+    }, { once: true });
+    group.appendChild(image);
+  } else {
+    group.appendChild(createBrandText(item.brand));
+  }
+  return group;
+}
+
+function createBrandText(value) {
+  const text = svgEl('text', { x: 0, y: 4, class: 'pa-donut-brand__text', 'text-anchor': 'middle' });
+  text.textContent = abbreviate(value || 'INDEX', 6);
+  return text;
+}
+
+function renderLegend(legendEl, items) {
+  if (!legendEl) return [];
+  const legendItems = [];
+
+  items.forEach((item, index) => {
+    const row = document.createElement('div');
+    row.className = 'pa-portfolio-legend__item';
+    row.dataset.index = String(index);
+    row.tabIndex = 0;
+    row.setAttribute('role', 'button');
+    row.setAttribute('aria-pressed', 'false');
+    row.setAttribute('aria-label', `${item.name}${item.code ? ` ${item.code}` : ''}，占投资组合 ${item.pct.toFixed(1)}%`);
+    row.style.setProperty('--item-color', item.colors[0]);
+    row.style.setProperty('--item-pct', `${Math.min(100, item.pct).toFixed(1)}%`);
+
+    const rank = document.createElement('span');
+    rank.className = 'pa-portfolio-legend__rank';
+    rank.textContent = String(index + 1).padStart(2, '0');
+    const dot = document.createElement('span');
+    dot.className = 'pa-portfolio-legend__dot';
+    const copy = document.createElement('span');
+    copy.className = 'pa-portfolio-legend__copy';
+    const name = document.createElement('span');
+    name.className = 'pa-portfolio-legend__name';
+    name.textContent = item.name;
+    const code = document.createElement('span');
+    code.className = 'pa-portfolio-legend__code';
+    code.textContent = item.code || 'ASSET';
+    const pct = document.createElement('span');
+    pct.className = 'pa-portfolio-legend__pct';
+    pct.textContent = `${item.pct.toFixed(1)}%`;
+
+    copy.append(name, code);
+    row.append(rank, dot, copy, pct);
+    legendEl.appendChild(row);
+    legendItems.push(row);
+  });
+  return legendItems;
+}
+
+function bindWheelInteractions({ svg, sectorsLayer, interactiveItems, legendItems, centerId, total, defaultItem, isShowcase }) {
+  let lockedIndex = null;
+
+  const setPressed = (index) => {
+    interactiveItems.forEach(({ target }, itemIndex) => target.setAttribute('aria-pressed', String(itemIndex === index)));
+    legendItems.forEach((target, itemIndex) => target.setAttribute('aria-pressed', String(itemIndex === index)));
+  };
+
+  const reset = () => {
+    sectorsLayer.classList.remove('pa-donut-sectors--has-active');
+    interactiveItems.forEach(({ group }) => {
+      group.classList.remove('is-active');
+      group.removeAttribute('transform');
+    });
+    legendItems.forEach((item) => item.classList.remove('is-active'));
+    setPressed(lockedIndex);
+    updateCenter(centerId, lockedIndex === null ? defaultItem : interactiveItems[lockedIndex]?.item, total, { showcase: isShowcase });
+  };
+
+  const activate = (index, transient = false) => {
+    const current = interactiveItems[index];
+    if (!current) return;
+    sectorsLayer.classList.add('pa-donut-sectors--has-active');
+    interactiveItems.forEach(({ group, midAngle }, itemIndex) => {
+      const isActive = itemIndex === index;
+      group.classList.toggle('is-active', isActive);
+      if (isActive) {
+        const offset = polarToCartesian(0, 0, 5, midAngle);
+        group.setAttribute('transform', `translate(${offset.x.toFixed(2)} ${offset.y.toFixed(2)})`);
+      } else {
+        group.removeAttribute('transform');
+      }
+    });
+    legendItems.forEach((item, itemIndex) => item.classList.toggle('is-active', itemIndex === index));
+    if (!transient) setPressed(index);
+    updateCenter(centerId, current.item, total, { showcase: isShowcase });
+  };
+
+  const bindTarget = (target, index) => {
+    target.addEventListener('mouseenter', () => activate(index, true));
+    target.addEventListener('mouseleave', () => {
+      if (!target.matches(':focus-visible')) {
+        if (lockedIndex === null) reset(); else activate(lockedIndex);
+      }
+    });
+    target.addEventListener('focus', () => activate(index, true));
+    target.addEventListener('blur', () => {
+      if (lockedIndex === null) reset(); else activate(lockedIndex);
+    });
+    target.addEventListener('click', (event) => {
+      event.stopPropagation();
+      lockedIndex = lockedIndex === index ? null : index;
+      if (lockedIndex === null) reset(); else activate(lockedIndex);
+    });
+    target.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        target.click();
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        lockedIndex = null;
+        target.blur();
+        reset();
+      }
+    });
+  };
+
+  interactiveItems.forEach(({ target }, index) => bindTarget(target, index));
+  legendItems.forEach((target, index) => bindTarget(target, index));
+  svg.addEventListener('click', () => {
+    lockedIndex = null;
+    reset();
+  });
+  reset();
+}
+
+function updateCenter(centerId, item, total, { showcase = false } = {}) {
+  const card = centerId ? document.getElementById(centerId) : null;
   if (!card) return;
   const label = card.querySelector('.pa-wheel__center-label');
+  const code = card.querySelector('.pa-wheel__center-code');
   const value = card.querySelector('.pa-wheel__center-value');
   if (!label || !value) return;
-  const shortName = item.name.length > 10 ? item.name.slice(0, 9) + '…' : item.name;
-  label.textContent = shortName;
-  value.textContent = fmtMoney(item.value);
+
+  if (!item) {
+    label.textContent = '暂无持仓';
+    if (code) code.textContent = 'ADD YOUR FIRST ASSET';
+    value.textContent = showcase ? '0%' : fmtMoney(0);
+    return;
+  }
+
+  label.textContent = abbreviate(item.name, 11);
+  if (code) code.textContent = item.code ? `${item.code} · ${fmtMoney(item.value)}` : fmtMoney(item.value);
+  value.textContent = showcase ? `${item.pct.toFixed(1)}%` : fmtMoney(item.value);
+  card.style.setProperty('--center-accent', item.colors?.[0] || '#D8B76B');
+}
+
+function renderEmptyWheel(el, centerId, legendEl, { showcase }) {
+  const svg = svgEl('svg', { viewBox: `0 0 ${VIEWBOX_SIZE} ${VIEWBOX_SIZE}`, class: 'pa-donut-svg pa-donut-svg--empty' });
+  const ring = svgEl('path', {
+    d: describeFullAnnulus(CX, CY, OUTER_RADIUS, INNER_RADIUS),
+    class: 'pa-donut-base',
+    'fill-rule': 'evenodd',
+  });
+  svg.appendChild(ring);
+  el.appendChild(svg);
+  if (legendEl) {
+    const empty = document.createElement('div');
+    empty.className = 'pa-portfolio-legend__empty';
+    empty.textContent = '添加资产后，这里会显示真实权重';
+    legendEl.appendChild(empty);
+  }
+  updateCenter(centerId, null, 0, { showcase });
+}
+
+function gradientPair(hex) {
+  const normalized = /^#[0-9a-f]{6}$/i.test(hex) ? hex : '#2878FF';
+  const r = parseInt(normalized.slice(1, 3), 16);
+  const g = parseInt(normalized.slice(3, 5), 16);
+  const b = parseInt(normalized.slice(5, 7), 16);
+  const dark = [r, g, b]
+    .map((channel) => Math.round(channel * 0.42).toString(16).padStart(2, '0'))
+    .join('');
+  return [normalized, `#${dark}`];
+}
+
+function sectorGap(span) {
+  // 极小持仓的间隔必须小于扇区本身，否则真实持仓会被视觉间隔吞掉。
+  return Math.min(1.4, Math.max(0.02, span * 0.13), span * 0.45);
+}
+
+function createMonogram(value) {
+  return String(value || 'ASSET')
+    .replace(/[^A-Za-z0-9\u4e00-\u9fff]/g, '')
+    .slice(0, 4)
+    .toUpperCase();
+}
+
+function abbreviate(value, maxLength) {
+  const text = String(value || '');
+  return text.length > maxLength ? `${text.slice(0, Math.max(1, maxLength - 1))}…` : text;
+}
+
+function stop(offset, color, opacity) {
+  return svgEl('stop', { offset, 'stop-color': color, 'stop-opacity': opacity });
+}
+
+function svgEl(tag, attributes = {}) {
+  const element = document.createElementNS(SVG_NS, tag);
+  Object.entries(attributes).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) element.setAttribute(key, String(value));
+  });
+  return element;
+}
+
+function polarToCartesian(cx, cy, radius, angleInDegrees) {
+  const radians = angleInDegrees * Math.PI / 180;
+  return {
+    x: cx + radius * Math.cos(radians),
+    y: cy + radius * Math.sin(radians),
+  };
+}
+
+function describeAnnularSector(cx, cy, outerRadius, innerRadius, startAngle, endAngle, direction = 1) {
+  const outerStart = polarToCartesian(cx, cy, outerRadius, startAngle);
+  const outerEnd = polarToCartesian(cx, cy, outerRadius, endAngle);
+  const innerEnd = polarToCartesian(cx, cy, innerRadius, endAngle);
+  const innerStart = polarToCartesian(cx, cy, innerRadius, startAngle);
+  const largeArcFlag = Math.abs(endAngle - startAngle) > 180 ? 1 : 0;
+  const outerSweep = direction > 0 ? 1 : 0;
+  const innerSweep = outerSweep ? 0 : 1;
+
+  return [
+    `M ${outerStart.x.toFixed(3)} ${outerStart.y.toFixed(3)}`,
+    `A ${outerRadius} ${outerRadius} 0 ${largeArcFlag} ${outerSweep} ${outerEnd.x.toFixed(3)} ${outerEnd.y.toFixed(3)}`,
+    `L ${innerEnd.x.toFixed(3)} ${innerEnd.y.toFixed(3)}`,
+    `A ${innerRadius} ${innerRadius} 0 ${largeArcFlag} ${innerSweep} ${innerStart.x.toFixed(3)} ${innerStart.y.toFixed(3)}`,
+    'Z',
+  ].join(' ');
+}
+
+function describeFullAnnulus(cx, cy, outerRadius, innerRadius) {
+  return [
+    `M ${cx} ${cy - outerRadius}`,
+    `A ${outerRadius} ${outerRadius} 0 1 1 ${cx - 0.01} ${cy - outerRadius}`,
+    'Z',
+    `M ${cx} ${cy - innerRadius}`,
+    `A ${innerRadius} ${innerRadius} 0 1 0 ${cx - 0.01} ${cy - innerRadius}`,
+    'Z',
+  ].join(' ');
 }

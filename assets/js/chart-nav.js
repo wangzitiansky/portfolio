@@ -12,10 +12,10 @@ const SYMBOL_NAME = '组合净值';
 
 // 粒度 → 线色（对应官方 intervalColors，取值于项目色板）
 const INTERVALS = [
-  { key: '1D', label: '1D', color: '#3B82F6' },
-  { key: '1W', label: '1W', color: '#6366F1' },
-  { key: '1M', label: '1M', color: '#14B8A6' },
-  { key: '1Y', label: '1Y', color: '#F59E0B' },
+  { key: '1D', label: '1D', color: '#D9B96D' },
+  { key: '1W', label: '1W', color: '#3B78E7' },
+  { key: '1M', label: '1M', color: '#23A8A2' },
+  { key: '1Y', label: '1Y', color: '#7B5AE4' },
 ];
 const INTERVAL_MAP = Object.fromEntries(INTERVALS.map((i) => [i.key, i]));
 
@@ -51,7 +51,7 @@ export function renderNavTrend(el, data) {
   // ---- 图表（与官方示例一致）---------------------------------------------
   _chart = window.LightweightCharts.createChart(container, {
     layout: {
-      textColor: '#5A6480',
+      textColor: '#737C94',
       fontSize: 11,
       background: { type: 'solid', color: 'transparent' },
       fontFamily:
@@ -74,7 +74,7 @@ export function renderNavTrend(el, data) {
       },
       // 垂直十字线：细线 + 蓝色日期标签
       vertLine: {
-        color: 'rgba(255,255,255,0.20)',
+        color: 'rgba(217,185,109,0.28)',
         width: 1,
         style: 0,
         labelBackgroundColor: INTERVAL_MAP['1D'].color,
@@ -88,7 +88,7 @@ export function renderNavTrend(el, data) {
       horzLines: { visible: false },
     },
     timeScale: {
-      borderColor: 'rgba(255,255,255,0.06)',
+      borderColor: 'rgba(217,185,109,0.08)',
       // timeVisible=false：标签只显示日期（MM-DD），不显示 "00:00"
       timeVisible: false,
       secondsVisible: false,
@@ -101,8 +101,8 @@ export function renderNavTrend(el, data) {
 
   // ---- 面积序列（v5 API: addSeries）--------------------------------------
   _series = _chart.addSeries(window.LightweightCharts.AreaSeries, {
-    topColor: 'rgba(59, 130, 246, 0.20)',
-    bottomColor: 'rgba(59, 130, 246, 0.0)',
+    topColor: 'rgba(217, 185, 109, 0.18)',
+    bottomColor: 'rgba(217, 185, 109, 0.0)',
     lineColor: INTERVAL_MAP['1D'].color,
     lineWidth: 2,
     crosshairMarkerVisible: false,
@@ -124,8 +124,8 @@ export function renderNavTrend(el, data) {
     'padding:6px 10px;border-radius:6px;' +
     'font-size:12px;font-family:"Inter","Noto Sans SC",-apple-system,sans-serif;' +
     'line-height:18px;white-space:nowrap;' +
-    'background:rgba(13,19,48,0.92);' +
-    'border:1px solid rgba(255,255,255,0.10);' +
+    'background:rgba(7,11,27,0.94);' +
+    'border:1px solid rgba(217,185,109,0.18);' +
     'box-shadow:0 4px 16px rgba(0,0,0,0.4);';
   container.appendChild(tooltip);
 
@@ -147,7 +147,7 @@ export function renderNavTrend(el, data) {
     }
 
     tooltip.innerHTML =
-      `<strong style="color:#E8ECF4">${fmtMoney(price)}</strong>`;
+      `<strong style="color:#F4F1E9">${fmtMoney(price)}</strong>`;
     tooltip.style.display = 'block';
 
     // 定位：跟随十字线，加偏移避免遮挡

@@ -44,12 +44,12 @@ export function holdingsCategory(h) {
   const { market, type } = h;
   if (market === 'us' && type === 'stock') return '美股';
   if (market === 'hk' && type === 'stock') return '港股';
-  if ((market === 'sh' || market === 'sz') && (type === 'etf' || type === 'fund')) return '场内基金';
-  if (market === 'of' && (type === 'etf' || type === 'fund')) return '场外基金';
+  if ((market === 'sh' || market === 'sz') && (type === 'etf' || type === 'fund')) return '场内';
+  if (market === 'of' && (type === 'etf' || type === 'fund')) return '场外';
   if (market === 'us') return '美股';
   if (market === 'hk') return '港股';
   if (market === 'sh' || market === 'sz') return '场内';
-  if (market === 'of') return '场外基金';
+  if (market === 'of') return '场外';
   if (market === 'manual') return '手动';
   return '其他';
 }

@@ -8,7 +8,7 @@ import {
   renderChartLegend, renderCards, renderSummaryTable, openAddModal, showToast,
   renderWheel, clearCharts, setRefreshCountdown
 } from './ui.js';
-import { renderDonut } from './donut-chart.js';
+import { buildPortfolioSeries, renderDonut } from './donut-chart.js';
 
 /* ── 初始化 ── */
 
@@ -28,6 +28,7 @@ async function init() {
 	await fundReady;
 
   if (holdings.length === 0) {
+    renderNoDataCharts();
     renderEmptyState();
   } else {
     await navReady;
@@ -51,6 +52,15 @@ async function fetchSnapshot(holdings, refreshFx = false) {
   return resp.json();
 }
 
+function renderNoDataCharts() {
+  renderDonut(document.getElementById('chart-portfolio'), [], 'portfolio-center', 'legend-portfolio', {
+    variant: 'showcase', mode: 'holdings',
+  });
+  renderDonut(document.getElementById('chart-index'), [], 'index-center', 'legend-index', {
+    variant: 'showcase', mode: 'index',
+  });
+}
+
 /* ── 刷新主链路 ── */
 
 let isRefreshing = false;
@@ -72,6 +82,7 @@ async function refresh(refreshFx = false) {
 		if (holdings.length === 0) {
 			disposeNavChart();
 			clearCharts();
+			renderNoDataCharts();
 			renderEmptyState();
 			return true;
 		}
@@ -120,14 +131,26 @@ async function refresh(refreshFx = false) {
     try {
       disposeNavChart();
       clearCharts();
-      const typeEl = document.getElementById('chart-type');
+      const portfolioEl = document.getElementById('chart-portfolio');
       const indexEl = document.getElementById('chart-index');
-      const byCat = charts.byCategory || [];
+      const byHolding = buildPortfolioSeries(rows);
+      const portfolioCount = document.getElementById('portfolio-count');
+      if (portfolioCount) portfolioCount.textContent = String(byHolding.length);
       const byIdx = charts.byIndex || [];
-      if (typeEl && typeEl.clientWidth > 0) renderDonut(typeEl, byCat, 'type-center', 'legend-type');
-      if (indexEl && indexEl.clientWidth > 0) renderDonut(indexEl, byIdx, 'index-center', 'legend-index');
-      // legend-type 已由 renderDonut 内部处理
-    } catch (e) { console.error('[refresh] 双图渲染失败', e); errors.push('图表渲染'); }
+      if (portfolioEl && portfolioEl.clientWidth > 0) {
+        renderDonut(portfolioEl, byHolding, 'portfolio-center', 'legend-portfolio', {
+          variant: 'showcase',
+          mode: 'holdings',
+          totalValue: kpi.total,
+        });
+      }
+      if (indexEl && indexEl.clientWidth > 0) {
+        renderDonut(indexEl, byIdx, 'index-center', 'legend-index', {
+          variant: 'showcase',
+          mode: 'index',
+        });
+      }
+    } catch (e) { console.error('[refresh] 组合图表渲染失败', e); errors.push('图表渲染'); }
 
     // 5. 渲染 KPI / 表格（优先渲染，不等待 recordP）
     try { renderHero(kpi); } catch (e) { console.error('[refresh] renderHero 失败', e); errors.push('汇总'); }
@@ -233,8 +256,8 @@ function bindEvents() {
   });
 
   window.addEventListener('resize', () => {
-    // ECharts 双饼图 resize；净值走势图由 chart-nav.js 内 ResizeObserver 自行处理
-    ['chart-type', 'chart-index'].forEach(id => {
+    // 兼容旧版 ECharts 实例；SVG 轮盘会随容器自动缩放
+    ['chart-portfolio', 'chart-index'].forEach(id => {
       const el = document.getElementById(id);
       if (el && window.echarts) {
         try { const inst = window.echarts.getInstanceByDom(el); if (inst) inst.resize(); } catch {}

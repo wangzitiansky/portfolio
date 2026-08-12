@@ -1,62 +1,59 @@
-/* ===== Design Tokens: Premium Investment Portfolio ===== */
+/* Design tokens · Dark Luxury Investment Portfolio */
 
 :root {
-  /* ── 背景 ── */
-  --bg: #050817;
-  --bg-soft: #0A0F28;
-  --surface: #0D1330;
-  --surface-2: #111840;
-  --bg-glow: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(37, 99, 235, .08) 0%, transparent 60%);
+  --bg: #030611;
+  --bg-soft: #070C1D;
+  --surface: #0A1026;
+  --surface-2: #101936;
+  --surface-glass: rgba(8, 14, 34, .78);
+  --bg-glow: radial-gradient(ellipse 78% 48% at 50% 0%, rgba(39, 91, 210, .17), transparent 68%);
 
-  /* ── 文字 ── */
-  --fg: #E8ECF4;
-  --fg-2: #8892B0;
-  --muted: #5A6480;
-  --meta: #3D4660;
+  --fg: #F4F1E9;
+  --fg-2: #A7AEC1;
+  --muted: #737C94;
+  --meta: #505A73;
 
-  /* ── 边框 ── */
-  --border: rgba(255, 255, 255, .06);
-  --border-soft: rgba(255, 255, 255, .04);
+  --border: rgba(234, 211, 155, .13);
+  --border-soft: rgba(255, 255, 255, .055);
+  --gold: #D9B96D;
+  --gold-bright: #F0D795;
+  --gold-soft: rgba(217, 185, 109, .14);
 
-  /* ── 品牌色 ── */
-  --accent: #3B82F6;
-  --accent-hover: #60A5FA;
-  --accent-active: #2563EB;
+  --accent: #2E72E8;
+  --accent-hover: #4D8BFA;
+  --accent-active: #1D59C9;
   --accent-on: #FFFFFF;
-  --accent-glow: 0 0 20px rgba(59, 130, 246, .25);
-  --focus-ring: 0 0 0 3px rgba(59, 130, 246, .3);
+  --accent-glow: 0 0 24px rgba(46, 114, 232, .28);
+  --focus-ring: 0 0 0 3px rgba(217, 185, 109, .25);
 
-  /* ── 语义色（A股红涨绿跌）── */
-  --up: #EF4444;
-  --up-strong: #F87171;
-  --up-bg: rgba(239, 68, 68, .12);
-  --down: #22C55E;
-  --down-strong: #4ADE80;
-  --down-bg: rgba(34, 197, 94, .12);
-  --flat: #5A6480;
-  --warn: #F59E0B;
-  --danger: #EF4444;
+  --up: #F2555E;
+  --up-strong: #FF757C;
+  --up-bg: rgba(242, 85, 94, .12);
+  --down: #28C87A;
+  --down-strong: #55DEA0;
+  --down-bg: rgba(40, 200, 122, .12);
+  --flat: #737C94;
+  --warn: #E7B54E;
+  --danger: #EF5963;
 
-  /* ── 资产分类色（高饱和）── */
-  --chart-stock: #3B82F6;
-  --chart-etf: #6366F1;
-  --chart-fund: #8B5CF6;
-  --chart-bond: #F59E0B;
-  --chart-cash: #5A6480;
-  --chart-commodity: #F97316;
-  --chart-other: #14B8A6;
+  --chart-stock: #3478F6;
+  --chart-etf: #665CE4;
+  --chart-fund: #8250D4;
+  --chart-bond: #D7A23D;
+  --chart-cash: #737C94;
+  --chart-commodity: #E57728;
+  --chart-other: #18A7A1;
 
-  /* ── 持仓大类标签色 ── */
-  --tag-us: #3B82F6;
-  --tag-hk: #EF4444;
-  --tag-etf: #6366F1;
-  --tag-of: #22C55E;
-  --tag-default: #5A6480;
+  --tag-us: #3478F6;
+  --tag-hk: #E7515B;
+  --tag-etf: #665CE4;
+  --tag-of: #28B975;
+  --tag-default: #737C94;
 
-  /* ── 排版 ── */
-  --font-display: "Inter", "Noto Sans SC", -apple-system, "PingFang SC", sans-serif;
-  --font-body: "Inter", "Noto Sans SC", -apple-system, "PingFang SC", sans-serif;
-  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  --font-display: "DIN Alternate", "Bahnschrift SemiCondensed", "Arial Narrow", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --font-serif: Georgia, "Times New Roman", "Songti SC", "SimSun", serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 
   --text-xs: 12px;
   --text-sm: 13px;
@@ -68,33 +65,40 @@
   --text-4xl: 48px;
   --text-5xl: 64px;
 
-  /* ── 间距 ── */
-  --space-1: 4px; --space-2: 8px; --space-3: 12px;
-  --space-4: 16px; --space-5: 20px; --space-6: 24px;
-  --space-8: 32px; --space-10: 40px; --space-12: 48px;
-  --space-16: 64px; --space-20: 80px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
 
-  /* ── 圆角 ── */
-  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px;
-  --radius-xl: 24px; --radius-2xl: 32px;
+  --radius-sm: 5px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
 
-  /* ── 阴影 / Glow ── */
   --elev-flat: none;
-  --elev-raised: 0 4px 24px rgba(0, 0, 0, .3);
-  --elev-modal: 0 20px 60px rgba(0, 0, 0, .5);
-  --glow-blue: 0 0 30px rgba(59, 130, 246, .15);
-  --glow-card: 0 0 0 1px rgba(255, 255, 255, .06), 0 2px 8px rgba(0, 0, 0, .2);
+  --elev-raised: 0 16px 42px rgba(0, 0, 0, .32);
+  --elev-modal: 0 30px 90px rgba(0, 0, 0, .62);
+  --glow-blue: 0 0 38px rgba(46, 114, 232, .16);
+  --glow-card: 0 32px 90px rgba(0, 0, 0, .34), inset 0 1px rgba(255, 255, 255, .035);
 
-  /* ── z-index ── */
-  --z-base: 0; --z-dropdown: 1000; --z-sticky: 1100;
-  --z-modal: 1200; --z-toast: 1300;
+  --z-base: 0;
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-modal: 1200;
+  --z-toast: 1300;
 
-  /* ── 布局 ── */
-  --header-h: 64px;
-  --container-max: 1200px;
+  --header-h: 72px;
+  --container-max: 1360px;
 }
 
-/* ── 原子类 ── */
 .num { font-variant-numeric: tabular-nums; }
 .up { color: var(--up-strong); }
 .down { color: var(--down-strong); }
@@ -102,32 +106,44 @@
 .up-badge { color: var(--up); background: var(--up-bg); border-radius: var(--radius-sm); padding: 1px 6px; font-size: var(--text-xs); }
 .down-badge { color: var(--down); background: var(--down-bg); border-radius: var(--radius-sm); padding: 1px 6px; font-size: var(--text-xs); }
 
-/* ── 全局 reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { background: var(--bg); }
+html { color-scheme: dark; background: var(--bg); scroll-behavior: smooth; }
 body {
-  font-family: var(--font-body);
-  font-size: var(--text-base);
-  line-height: 1.5;
+  min-width: 320px;
+  overflow-x: hidden;
   color: var(--fg);
   background: var(--bg);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
   font-variant-numeric: tabular-nums;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
 }
 
-/* ── bg glow ── */
 body::before {
   content: '';
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: var(--bg-glow);
-  pointer-events: none; z-index: 0;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(255, 255, 255, .018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .018) 1px, transparent 1px),
+    var(--bg-glow);
+  background-size: 56px 56px, 56px 56px, auto;
+  mask-image: linear-gradient(#000 0%, rgba(0, 0, 0, .65) 46%, transparent 88%);
 }
 
-/* ── reduced-motion ── */
+button, input, select, textarea { font: inherit; }
+button, summary { -webkit-tap-highlight-color: transparent; }
+a { color: inherit; }
+
 @media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
   *, *::before, *::after {
-    animation-duration: 0s !important;
-    transition-duration: 0s !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
   }
 }

@@ -130,7 +130,7 @@ function buildRow(r) {
 
   return '<tr data-id="' + escHtml(r.id) + '">' +
     '<td><div class="pa-td-name">' + escHtml(r.name || r.code) + '</div><div class="pa-td-code">' + escHtml(r.code) + '</div></td>' +
-    '<td>' + escHtml(cat) + '</td>' +
+    '<td class="pa-table--type">' + escHtml(cat) + '</td>' +
     '<td><span class="pa-table--meta">' + escHtml(r.index || '--') + '</span></td>' +
     '<td class="pa-table--r"><div>' + fmtNum(r.quantity, r.quantity % 1 ? 2 : 0) + ' 份</div><div class="pa-table--meta">' + sym + fmtNum(r.cost, r.cost % 1 ? 4 : 2) + '</div></td>' +
     '<td class="pa-table--r"><div>' + priceStr + '</div><div class="pa-table--meta">' + cd + '</div></td>' +

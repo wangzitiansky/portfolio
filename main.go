@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -71,7 +72,15 @@ func main() {
 	// Static files
 	mux.HandleFunc("/", handleStatic)
 
-	addr := "127.0.0.1:8889"
+	port := 8889
+	if rawPort := strings.TrimSpace(os.Getenv("PORTFOLIO_PORT")); rawPort != "" {
+		if parsed, err := strconv.Atoi(rawPort); err == nil && parsed >= 1024 && parsed <= 65535 {
+			port = parsed
+		} else {
+			log.Printf("Invalid PORTFOLIO_PORT=%q; using 8889", rawPort)
+		}
+	}
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
 	log.Printf("API listening on %s", addr)
 	server := &http.Server{
 		Addr:              addr,
@@ -421,7 +430,8 @@ func handleStatic(w http.ResponseWriter, r *http.Request) {
 	clean := path.Clean("/" + strings.TrimPrefix(r.URL.Path, "/"))
 	allowed := clean == "/assets/index.html" ||
 		strings.HasPrefix(clean, "/assets/css/") ||
-		strings.HasPrefix(clean, "/assets/js/")
+		strings.HasPrefix(clean, "/assets/js/") ||
+		strings.HasPrefix(clean, "/assets/images/")
 	if !allowed {
 		http.NotFound(w, r)
 		return
