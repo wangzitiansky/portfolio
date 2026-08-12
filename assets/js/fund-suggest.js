@@ -1,9 +1,8 @@
 // fund-suggest.js — 基金搜索 + 清单加载（用于添加持仓的 autocomplete / identify）
 import { loadCache, saveCache } from './storage.js';
 
-const SUGGEST_URL = 'https://fundsuggest.eastmoney.com/FundSearch/api/FundSearchAPI.ashx';
-const FUND_LIST_URL = 'https://fund.eastmoney.com/js/fundcode_search.js';
-const TIMEOUT = 8000;
+const SUGGEST_URL = '/api/fund/suggest';
+const FUND_LIST_URL = '/api/fund/list';
 const CACHE_DAYS = 7;
 
 /* ── 基金搜索 / NAV（添加持仓时使用）── */
@@ -13,19 +12,10 @@ const CACHE_DAYS = 7;
  */
 export async function suggest(key) {
   try {
-    const url = `${SUGGEST_URL}?m=1&key=${encodeURIComponent(key)}`;
-    const data = await loadJsonp(url, TIMEOUT);
-    if (!data || !data.Datas || data.Datas.length === 0) return null;
-    const item = data.Datas[0];
-    const info = item.FundBaseInfo || {};
-    return {
-      code: item.CODE || key,
-      name: info.SHORTNAME || item.NAME || '',
-      ftype: info.FTYPE || '',
-      othername: info.OTHERNAME || '',
-      nav: info.DWJZ ? Number(info.DWJZ) : null,
-      navDate: info.FSRQ || ''
-    };
+	const resp = await fetch(`${SUGGEST_URL}?key=${encodeURIComponent(key)}`);
+	if (!resp.ok) return null;
+	const data = await resp.json();
+	return data && data.code ? data : null;
   } catch { return null; }
 }
 
@@ -35,24 +25,7 @@ export async function suggest(key) {
 export async function fetchNav(code) {
   const result = await suggest(code);
   if (!result || result.nav === null || result.nav === undefined) return null;
-
-  let change = 0, changePct = 0;
-  try {
-    const histUrl = `https://api.fund.eastmoney.com/f10/lsjz?fundCode=${code}&pageIndex=1&pageSize=2`;
-    const histData = await loadJsonp(histUrl, 8000);
-    if (histData && histData.Data && histData.Data.LSJZList && histData.Data.LSJZList.length >= 2) {
-      const latest = histData.Data.LSJZList[0];
-      const prev = histData.Data.LSJZList[1];
-      const latestNav = Number(latest.DWJZ);
-      const prevNav = Number(prev.DWJZ);
-      if (latestNav > 0 && prevNav > 0) {
-        change = latestNav - prevNav;
-        changePct = (change / prevNav) * 100;
-      }
-    }
-  } catch { /* 历史接口失败不影响主流程 */ }
-
-  return { nav: result.nav, navDate: result.navDate || '', change, changePct };
+	return { nav: result.nav, navDate: result.navDate || '', change: 0, changePct: 0 };
 }
 
 /* ── 基金清单加载 ── */
@@ -67,13 +40,10 @@ export async function loadFundList() {
   }
 
   try {
-    const raw = await loadScript(FUND_LIST_URL, TIMEOUT);
-    const re = /\["(\d{6})","[^"]*","([^"]*)","([^"]*)"/g;
-    const list = [];
-    let m;
-    while ((m = re.exec(raw)) !== null) {
-      list.push([m[1], m[2], m[3]]);
-    }
+	const resp = await fetch(FUND_LIST_URL);
+	if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+	const list = await resp.json();
+	if (!Array.isArray(list)) throw new Error('基金清单格式无效');
     if (list.length > 0) {
       saveCache({ fundList: { data: list, ts: Date.now() } });
     }
@@ -93,54 +63,4 @@ export function getFundListCache() {
     return { list: cache.fundList.data, ts: cache.fundList.ts };
   }
   return null;
-}
-
-/* ── 内部 ── */
-
-function loadJsonp(url, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const cbName = '__paFs' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-    const script = document.createElement('script');
-    const sep = url.includes('?') ? '&' : '?';
-    const fullUrl = url + sep + 'callback=' + cbName;
-
-    const timer = setTimeout(() => { cleanup(); reject(new Error('基金搜索超时')); }, timeoutMs);
-
-    window[cbName] = (data) => { clearTimeout(timer); cleanup(); resolve(data); };
-
-    function cleanup() {
-      clearTimeout(timer);
-      if (script.parentNode) script.parentNode.removeChild(script);
-      delete window[cbName];
-    }
-
-    script.charset = 'UTF-8';
-    script.src = fullUrl;
-    script.onerror = () => { cleanup(); reject(new Error('基金搜索加载失败')); };
-    document.head.appendChild(script);
-  });
-}
-
-function loadScript(url, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    const timer = setTimeout(() => {
-      if (script.parentNode) script.parentNode.removeChild(script);
-      reject(new Error('基金清单加载超时'));
-    }, timeoutMs);
-
-    script.src = url;
-    script.onload = () => {
-      clearTimeout(timer);
-      const raw = window.r ? JSON.stringify(window.r) : '';
-      if (script.parentNode) script.parentNode.removeChild(script);
-      resolve(raw);
-    };
-    script.onerror = () => {
-      clearTimeout(timer);
-      if (script.parentNode) script.parentNode.removeChild(script);
-      reject(new Error('基金清单加载失败'));
-    };
-    document.head.appendChild(script);
-  });
 }

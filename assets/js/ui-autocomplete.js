@@ -11,6 +11,11 @@ import { getFundListCache } from './fund-suggest.js';
  */
 export function initAutocomplete(inputEl, containerEl) {
   const dropdown = createDropdown();
+	dropdown.id = 'pa-autocomplete-' + Math.random().toString(36).slice(2, 9);
+	inputEl.setAttribute('role', 'combobox');
+	inputEl.setAttribute('aria-autocomplete', 'list');
+	inputEl.setAttribute('aria-controls', dropdown.id);
+	inputEl.setAttribute('aria-expanded', 'false');
   containerEl.style.position = 'relative';
   containerEl.appendChild(dropdown);
 
@@ -29,6 +34,7 @@ export function initAutocomplete(inputEl, containerEl) {
       activeIndex = -1;
       renderCandidates(candidates, dropdown, inputEl, (item) => {
         if (selectCallback) selectCallback(item);
+		closeDropdown();
       });
       openDropdown(dropdown, inputEl);
     }, 150);
@@ -48,20 +54,29 @@ export function initAutocomplete(inputEl, containerEl) {
   });
 
   // 点击外部关闭
-  document.addEventListener('click', (e) => {
+  const onDocumentClick = (e) => {
     if (!containerEl.contains(e.target)) closeDropdown();
-  });
+	};
+	document.addEventListener('click', onDocumentClick);
 
   return {
     dropdown,
     onSelect(cb) { selectCallback = cb; },
-    close: closeDropdown
+    close: closeDropdown,
+	destroy() {
+	  clearTimeout(debounceTimer);
+	  document.removeEventListener('click', onDocumentClick);
+	  closeDropdown();
+	  dropdown.remove();
+	}
   };
 
   function closeDropdown() {
     dropdown.classList.remove('open');
     dropdown.innerHTML = '';
     candidates = [];
+	inputEl.setAttribute('aria-expanded', 'false');
+	inputEl.removeAttribute('aria-activedescendant');
   }
 
   function openDropdown(dd, inp) {
@@ -71,6 +86,7 @@ export function initAutocomplete(inputEl, containerEl) {
     dd.style.left = (rect.left - containerRect.left) + 'px';
     dd.style.width = rect.width + 'px';
     dd.classList.add('open');
+	inp.setAttribute('aria-expanded', 'true');
   }
 }
 
@@ -121,7 +137,9 @@ function renderCandidates(items, dropdown, inputEl, onSelect) {
   items.forEach((item, i) => {
     const row = document.createElement('div');
     row.className = 'pa-autocomplete__item';
+	row.id = dropdown.id + '-option-' + i;
     row.setAttribute('role', 'option');
+	row.setAttribute('aria-selected', 'false');
     row.innerHTML = `
       <span class="pa-autocomplete__item-code">${escapeHtml(String(item.code))}</span>
       <span class="pa-autocomplete__item-name">${escapeHtml(item.name || '')}</span>
@@ -134,7 +152,16 @@ function renderCandidates(items, dropdown, inputEl, onSelect) {
 
 function updateActive(dropdown, index) {
   const items = dropdown.querySelectorAll('.pa-autocomplete__item');
-  items.forEach((el, i) => el.classList.toggle('pa-autocomplete__item--active', i === index));
+	items.forEach((el, i) => {
+		const active = i === index;
+		el.classList.toggle('pa-autocomplete__item--active', active);
+		el.setAttribute('aria-selected', String(active));
+	});
+	const input = dropdown.parentElement?.querySelector('[role="combobox"]');
+	if (input) {
+		if (items[index]) input.setAttribute('aria-activedescendant', items[index].id);
+		else input.removeAttribute('aria-activedescendant');
+	}
 }
 
 function classifyBrief(ftype) {

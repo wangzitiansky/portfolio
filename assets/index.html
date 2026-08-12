@@ -34,7 +34,7 @@
         </button>
         <button class="pa-btn pa-btn--ghost pa-btn--sm" id="btn-import" style="color:var(--muted)">导入</button>
         <button class="pa-btn pa-btn--ghost pa-btn--sm" id="btn-export" style="color:var(--muted)">导出</button>
-        <button class="pa-btn pa-btn--ghost pa-btn--sm" id="btn-record-nav" style="color:var(--muted)">记录净值</button>
+		<button class="pa-btn pa-btn--ghost pa-btn--sm" id="btn-record-nav" style="color:var(--muted)">记录资产</button>
       </div>
     </header>
 
@@ -102,15 +102,15 @@
       <div class="pa-cards-grid" id="summary-grid"></div>
     </section>
 
-    <!-- NAV Trend -->
+	<!-- Total Asset Trend -->
     <section class="pa-nav-section">
       <div class="pa-chart-card">
-        <div class="pa-chart-card__title">净值走势 <span>每日组合净值</span></div>
+		<div class="pa-chart-card__title">总资产走势 <span>每日组合市值（含出入金影响）</span></div>
         <div class="pa-chart-wrap pa-chart-wrap--nav">
           <div class="pa-chart" id="chart-nav"></div>
         </div>
         <div class="pa-nav-empty" id="nav-empty" style="display:none">
-          <span>数据不足，至少需要 2 天的净值记录</span>
+		  <span>数据不足，至少需要 2 天的资产记录</span>
         </div>
       </div>
     </section>
@@ -122,11 +122,8 @@
     </footer>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"
-    onerror="var s=document.createElement('script');s.src='https://cdn.staticfile.org/echarts/5.4.3/echarts.min.js';document.head.appendChild(s);">
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@5.2.0/dist/lightweight-charts.standalone.production.js"
-    onerror="var s=document.createElement('script');s.src='https://unpkg.com/lightweight-charts@5.2.0/dist/lightweight-charts.standalone.production.js';document.head.appendChild(s);">
+	<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@5.2.0/dist/lightweight-charts.standalone.production.js"
+	  integrity="sha384-q1KYLSKHgBnW5tWYGGR8+6YV4/iPy31dILoF2I1OD7XiVUvHEp/TaxIQVmB0j3R2" crossorigin="anonymous">
   </script>
   <script type="module" src="js/main.js"></script>
 </body>

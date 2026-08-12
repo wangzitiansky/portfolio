@@ -225,7 +225,10 @@ export function renderSummaryTable(rows) {
 
 export function renderHeader(ts, staleCount) {
   const t = document.querySelector('.pa-header__updated');
-  if (t) t.textContent = '数据更新于 ' + (ts ? new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--:--:--');
+	if (t) {
+		const updated = ts ? new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--:--:--';
+		t.textContent = `数据更新于 ${updated}${staleCount > 0 ? ` · ${staleCount} 条行情过期` : ''}`;
+	}
 }
 
 export function setRefreshCountdown(s) {
@@ -236,6 +239,8 @@ export function setRefreshCountdown(s) {
 /* ── Empty Hero ── */
 
 export function renderEmptyState() {
+	_tableReady = false;
+	_currentRows = [];
   document.getElementById('hero-total').textContent = '¥0';
   document.getElementById('hero-pnl').innerHTML = '<span class="pa-hero__pnl-val" style="color:var(--muted)">--</span>';
   document.getElementById('hero-meta').textContent = 'No Assets';
@@ -247,6 +252,31 @@ export function renderEmptyState() {
   if (grid) { grid.innerHTML = ''; grid.style.display = 'none'; }
   const empty = document.getElementById('cards-empty');
   if (empty) empty.style.display = '';
+	const count = document.getElementById('cards-count');
+	if (count) count.textContent = '0 Assets';
+	for (const id of ['chart-type', 'chart-index']) {
+		const el = document.getElementById(id);
+		if (el) el.replaceChildren();
+	}
+	for (const id of ['type-center', 'index-center']) {
+		const center = document.getElementById(id);
+		if (center) {
+			const label = center.querySelector('.pa-wheel__center-label');
+			const value = center.querySelector('.pa-wheel__center-value');
+			if (label) label.textContent = '暂无数据';
+			if (value) value.textContent = '¥0.00';
+		}
+	}
+	const summary = document.getElementById('summary-section');
+	const summaryGrid = document.getElementById('summary-grid');
+	if (summary) summary.style.display = 'none';
+	if (summaryGrid) summaryGrid.replaceChildren();
+	const navEl = document.getElementById('chart-nav');
+	const navEmpty = document.getElementById('nav-empty');
+	const navWrap = navEl?.parentElement;
+	if (navEl) navEl.replaceChildren();
+	if (navEmpty) navEmpty.style.display = 'block';
+	if (navWrap) navWrap.style.display = 'none';
 }
 
 function escHtml(s) {

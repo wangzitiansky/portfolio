@@ -1,5 +1,5 @@
 // main.js — Portfolio 入口装配（后端 snapshot 模式）
-import { initStorage, getHoldings, saveHoldings, exportJSON, importJSON } from './storage.js';
+import { initStorage, getHoldings, getStorageVersion, saveHoldings, exportJSON, importJSON } from './storage.js';
 import { loadFundList } from './fund-suggest.js';
 import { recordToday, getNavHistory, initNavHistory } from './nav-history.js';
 import { renderNavTrend, disposeNavChart } from './chart-nav.js';
@@ -13,10 +13,19 @@ import { renderDonut } from './donut-chart.js';
 /* ── 初始化 ── */
 
 async function init() {
-  loadFundList().catch(() => {});
-
-  const navReady = initNavHistory().catch(() => {});
-  const holdings = await initStorage();
+	const fundReady = loadFundList().catch((e) => { console.warn('[init] 基金清单加载失败', e); });
+	const navReady = initNavHistory().catch((e) => { console.warn('[init] 净值历史加载失败', e); });
+	let holdings;
+	try {
+		holdings = await initStorage();
+	} catch (e) {
+		console.error('[init] 持仓加载失败', e);
+		renderEmptyState();
+		showToast('持仓加载失败，为避免覆盖数据，本次会话已停止编辑；请刷新页面重试', 'error');
+		return;
+	}
+	// 添加资产依赖完整基金清单；加载失败仍可使用代码规则和远程识别。
+	await fundReady;
 
   if (holdings.length === 0) {
     renderEmptyState();
@@ -45,26 +54,43 @@ async function fetchSnapshot(holdings, refreshFx = false) {
 /* ── 刷新主链路 ── */
 
 let isRefreshing = false;
+let refreshQueued = false;
+let refreshQueuedFx = false;
 async function refresh(refreshFx = false) {
-  if (isRefreshing) return;
-  isRefreshing = true;
-  setRefreshLoading(true);
+	if (isRefreshing) {
+		refreshQueued = true;
+		refreshQueuedFx = refreshQueuedFx || refreshFx;
+		return false;
+	}
+	isRefreshing = true;
+	setRefreshLoading(true);
 
   const errors = [];
-  try {
-    const holdings = getHoldings();
-    if (holdings.length === 0) { renderEmptyState(); return; }
+	try {
+		const holdings = getHoldings();
+		const storageVersion = getStorageVersion();
+		if (holdings.length === 0) {
+			disposeNavChart();
+			clearCharts();
+			renderEmptyState();
+			return true;
+		}
 
     // 1. 一次性拉取 snapshot（行情 + 加工 + KPI + 图表数据全在后端完成）
     let snap;
     try {
-      snap = await fetchSnapshot(holdings, refreshFx);
+			snap = await fetchSnapshot(holdings, refreshFx);
     } catch (e) {
       console.error('[refresh] snapshot 拉取失败', e);
       throw new Error(`数据拉取失败: ${e.message}`);
-    }
+		}
+		// 刷新期间发生了增删改时，旧快照不得渲染或回写名称。
+		if (getStorageVersion() !== storageVersion) {
+			refreshQueued = true;
+			return false;
+		}
 
-    const { kpi, rows, charts, errors: serverErrors } = snap;
+		const { kpi, rows, charts, ts, errors: serverErrors } = snap;
 
     // 汇总后端错误
     if (serverErrors && serverErrors.length > 0) {
@@ -84,10 +110,11 @@ async function refresh(refreshFx = false) {
     }
 
     // 3. 记录今日净值
-    const pnlPct = kpi.total > 0 && kpi.total !== kpi.totalPnl
-      ? (kpi.totalPnl / (kpi.total - kpi.totalPnl)) * 100 : 0;
-    const recordP = recordToday(kpi.total, kpi.todayPnl, pnlPct, kpi.count)
-      .catch(e => { console.warn('[refresh] 净值记录失败', e.message); });
+		const previousTotal = kpi.total - kpi.todayPnl;
+		const pnlPct = previousTotal > 0 ? (kpi.todayPnl / previousTotal) * 100 : 0;
+		let recordFailed = false;
+		const recordP = recordToday(kpi.total, kpi.todayPnl, pnlPct, kpi.count)
+		  .catch(e => { recordFailed = true; throw e; });
 
     // 4. 渲染双图 & 净值走势
     try {
@@ -115,7 +142,7 @@ async function refresh(refreshFx = false) {
       );
     } catch (e) { console.error('[refresh] renderCards 失败', e); errors.push('持仓表格'); }
     try { renderSummaryTable(rows); } catch (e) { console.warn('[refresh] renderSummaryTable 失败', e.message); }
-    try { renderHeader(Date.now(), rows.filter(r => r.stale).length); } catch (e) { console.warn('[refresh] renderHeader 失败', e.message); }
+		try { renderHeader(ts, rows.filter(r => r.stale).length); } catch (e) { console.warn('[refresh] renderHeader 失败', e.message); }
 
     // 6. 净值走势图（需等待今日记录写入完成）
     try {
@@ -136,17 +163,25 @@ async function refresh(refreshFx = false) {
 
 
 
-    if (errors.length > 0) {
-      showToast(`部分异常: ${errors.slice(0, 2).join('、')}`, 'error');
-    }
+		if (errors.length > 0) {
+			showToast(`部分异常: ${errors.slice(0, 2).join('、')}`, 'error');
+		}
+		return !recordFailed;
 
-  } catch (e) {
-    console.error('[refresh] 致命错误', e);
-    showToast(`刷新失败: ${e.message}`, 'error');
-  } finally {
-    isRefreshing = false;
-    setRefreshLoading(false);
-  }
+	} catch (e) {
+		console.error('[refresh] 致命错误', e);
+		showToast(`刷新失败: ${e.message}`, 'error');
+		return false;
+	} finally {
+		isRefreshing = false;
+		setRefreshLoading(false);
+		if (refreshQueued) {
+			const queuedFx = refreshQueuedFx;
+			refreshQueued = false;
+			refreshQueuedFx = false;
+			queueMicrotask(() => refresh(queuedFx));
+		}
+	}
 }
 
 /* ── 事件绑定 ── */
@@ -160,14 +195,14 @@ function bindEvents() {
   btnAdd.addEventListener('click', () => openAddModal(async () => { await refresh(); }));
   btnRefresh.addEventListener('click', () => refresh(true));
 
-  btnRecordNav.addEventListener('click', async () => {
+	btnRecordNav.addEventListener('click', async () => {
     const holdings = getHoldings();
     if (holdings.length === 0) { showToast('暂无持仓数据', 'error'); return; }
-    if (isRefreshing) { showToast('正在刷新中，请稍候...', 'info'); return; }
-    try {
-      await refresh();
-      showToast('已记录今日净值', 'success');
-    } catch {
+		if (isRefreshing) { showToast('正在刷新中，请稍候...', 'info'); return; }
+		try {
+			const ok = await refresh();
+			showToast(ok ? '已记录今日资产' : '记录失败，请重试', ok ? 'success' : 'error');
+		} catch {
       showToast('记录失败，请重试', 'error');
     }
   });

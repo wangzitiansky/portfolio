@@ -6,8 +6,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -62,32 +64,60 @@ func fetchAllNavs(codes []string) map[string]*NavResult {
 	if len(codes) == 0 {
 		return map[string]*NavResult{}
 	}
+	seen := make(map[string]bool, len(codes))
+	unique := make([]string, 0, len(codes))
+	for _, code := range codes {
+		if !seen[code] {
+			seen[code] = true
+			unique = append(unique, code)
+		}
+	}
 
 	type pair struct {
 		code string
 		nav  *NavResult
 	}
-	ch := make(chan pair, len(codes))
-
-	for _, code := range codes {
-		go func(c string) {
-			ch <- pair{c, fetchNav(c)}
-		}(code)
+	jobs := make(chan string)
+	ch := make(chan pair, len(unique))
+	workerCount := 8
+	if len(unique) < workerCount {
+		workerCount = len(unique)
 	}
+	var wg sync.WaitGroup
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for code := range jobs {
+				ch <- pair{code, fetchNav(code)}
+			}
+		}()
+	}
+	go func() {
+		for _, code := range unique {
+			jobs <- code
+		}
+		close(jobs)
+		wg.Wait()
+		close(ch)
+	}()
 
 	results := map[string]*NavResult{}
-	timeout := time.After(time.Duration(navTimeout) * time.Second)
-	for i := 0; i < len(codes); i++ {
+	timer := time.NewTimer(time.Duration(navTimeout+1) * time.Second)
+	defer timer.Stop()
+	for {
 		select {
-		case p := <-ch:
+		case p, ok := <-ch:
+			if !ok {
+				return results
+			}
 			if p.nav != nil {
 				results[p.code] = p.nav
 			}
-		case <-timeout:
+		case <-timer.C:
 			return results
 		}
 	}
-	return results
 }
 
 type navEntry struct {
@@ -96,8 +126,15 @@ type navEntry struct {
 }
 
 func fetchNavHistory(code string, pageSize int) ([]navEntry, error) {
-	url := fmt.Sprintf("%s?fundCode=%s&pageIndex=1&pageSize=%d", navHistoryURL, code, pageSize)
-	req, _ := http.NewRequest("GET", url, nil)
+	params := url.Values{}
+	params.Set("fundCode", code)
+	params.Set("pageIndex", "1")
+	params.Set("pageSize", strconv.Itoa(pageSize))
+	requestURL := fmt.Sprintf("%s?%s", navHistoryURL, params.Encode())
+	req, err := http.NewRequest("GET", requestURL, nil)
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Set("User-Agent", "Mozilla/5.0")
 	req.Header.Set("Referer", "https://fund.eastmoney.com/")
 	resp, err := navHTTPClient.Do(req)
@@ -109,6 +146,7 @@ func fetchNavHistory(code string, pageSize int) ([]navEntry, error) {
 
 	if resp.StatusCode != 200 {
 		log.Printf("[nav] %s bad status %d", code, resp.StatusCode)
+		return nil, fmt.Errorf("bad status %d", resp.StatusCode)
 	}
 
 	// 使用 io.ReadAll 完整读取，避免截断

@@ -63,7 +63,7 @@ func initDB() error {
 	dbFile := filepath.Join(baseDir, "assets", "portfolio.db")
 
 	var err error
-	db, err = gorm.Open(sqlite.Open(dbFile+"?_journal_mode=WAL&_foreign_keys=on"), &gorm.Config{})
+	db, err = gorm.Open(sqlite.Open(dbFile+"?_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)"), &gorm.Config{})
 	if err != nil {
 		return err
 	}
@@ -101,7 +101,7 @@ func getAllHoldings() ([]Holding, error) {
 func replaceAllHoldings(items []Holding) error {
 	// 纠正基金 market 字段：场外基金代码被误标为 sh/sz 的，修正为 of
 	for i := range items {
-		if corrected := correctFundMarket(items[i].Market, items[i].Code); corrected != items[i].Market {
+		if corrected := correctFundMarket(items[i].Market, items[i].Code, items[i].Type); corrected != items[i].Market {
 			log.Printf("[db] corrected fund %s market: %s -> %s", items[i].Code, items[i].Market, corrected)
 			items[i].Market = corrected
 		}
@@ -120,9 +120,14 @@ func replaceAllHoldings(items []Holding) error {
 }
 
 // correctFundMarket 根据基金代码修正 market 字段，防止场外基金被误标为 sh/sz
-func correctFundMarket(market, code string) string {
+func correctFundMarket(market, code, assetType string) string {
 	// 只处理 sh/sz 市场（us/hk/of/manual 不受影响）
 	if market != "sh" && market != "sz" {
+		return market
+	}
+	// 股票代码和基金代码存在重叠。只有明确标记为基金类时才允许纠正，
+	// 不能把 600519、000001 等普通 A 股误改成场外基金。
+	if assetType != "fund" && assetType != "etf" && assetType != "money" {
 		return market
 	}
 	// 非 6 位纯数字代码不处理

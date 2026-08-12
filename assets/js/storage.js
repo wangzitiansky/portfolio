@@ -3,22 +3,23 @@ const MAX_HOLDINGS = 200;
 
 /* ── 内存缓存 ── */
 let _cache = null;
+let _version = 0;
 
 /* ── 持仓 CRUD ── */
 
 export async function loadHoldings() {
-  if (_cache !== null) return _cache;
-  try {
+	if (_cache !== null) return getHoldings();
+	try {
     const resp = await fetch('/api/data');
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const arr = await resp.json();
-    if (!Array.isArray(arr)) { _cache = []; return []; }
-    _cache = arr.filter(h => h && typeof h.code === 'string' && typeof h.market === 'string');
-    return _cache;
-  } catch {
-    _cache = [];
-    return [];
-  }
+		if (!Array.isArray(arr)) throw new Error('服务端返回了无效的持仓数据');
+		_cache = arr.filter(h => h && typeof h.code === 'string' && typeof h.market === 'string');
+		return getHoldings();
+	} catch (e) {
+		_cache = null;
+		throw new Error(`持仓加载失败: ${e.message || e}`);
+	}
 }
 
 export async function initStorage() {
@@ -38,11 +39,16 @@ export async function saveHoldings(holdings) {
     const body = await resp.json().catch(() => ({}));
     throw new Error(body.error || `保存失败 (HTTP ${resp.status})`);
   }
-  _cache = holdings;
+	_cache = holdings.map(h => ({ ...h }));
+	_version++;
 }
 
 export function getHoldings() {
-  return _cache || [];
+	return (_cache || []).map(h => ({ ...h }));
+}
+
+export function getStorageVersion() {
+	return _version;
 }
 
 /* ── localStorage 缓存（仅基金列表，用于 autocomplete） ── */
@@ -103,11 +109,12 @@ export async function importJSON(file) {
         }
         const existing = getHoldings();
         const map = new Map();
-        for (const h of existing) map.set(h.market + '|' + h.code, h);
-        for (const h of valid) {
+			for (const h of existing) map.set(holdingKey(h), h);
+			for (const h of valid) {
           if (typeof h.quantity === 'string') h.quantity = parseFloat(h.quantity);
           if (typeof h.cost === 'string') h.cost = parseFloat(h.cost);
-          const key = h.market + '|' + h.code + '|' + (h.account || '');
+		  h.currency = h.currency || (h.market === 'us' ? 'USD' : h.market === 'hk' ? 'HKD' : 'CNY');
+				const key = holdingKey(h);
           h.id = h.id || genId();
           h.createdAt = h.createdAt || Date.now();
           h.updatedAt = Date.now();
@@ -120,6 +127,10 @@ export async function importJSON(file) {
     reader.onerror = () => reject(new Error('文件读取失败'));
     reader.readAsText(file);
   });
+}
+
+function holdingKey(h) {
+	return `${h.market}|${h.code}|${h.account || ''}`;
 }
 
 export function genId() {

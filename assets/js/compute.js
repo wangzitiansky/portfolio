@@ -2,10 +2,12 @@
 
 /** 格式化金额（千分位，固定两位小数） */
 export function fmtMoney(n, currency) {
-  if (isNaN(n) || n === undefined) return '--';
+	const value = Number(n);
+	if (n === null || n === '' || !Number.isFinite(value)) return '--';
   const prefix = currency === 'USD' ? '$' : currency === 'HKD' ? 'HK$' : '¥';
   // +Number.EPSILON 防止 1.005→1.00 的经典浮点舍入 bug
-  return prefix + (Math.round((n + Number.EPSILON) * 100) / 100).toFixed(2);
+	const rounded = Math.round((value + Number.EPSILON) * 100) / 100;
+	return prefix + rounded.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 /** 格式化数值（千分位，不带货币符号）。decimals 默认 2 位 */

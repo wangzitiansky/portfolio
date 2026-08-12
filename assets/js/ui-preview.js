@@ -19,12 +19,10 @@ export function renderPreview(el, p) {
 
   const cls = trendClass(p.pnlPct);
   const currency = p.currency || 'CNY';
-  const prefix = currency === 'USD' ? '$' : currency === 'HKD' ? 'HK$' : '¥';
-
   el.innerHTML = `
-    <span>预估市值 <strong>${fmtMoney(p.marketValue)}</strong></span>
+	<span>预估市值 <strong>${fmtMoney(p.marketValue, currency)}</strong></span>
     <span style="margin:0 8px;color:var(--border)">·</span>
-    <span>预估盈亏 <strong class="${cls} num">${sign(p.pnl)}${fmtMoney(Math.abs(p.pnl))} (${fmtPct(p.pnlPct)})</strong></span>
+	<span>预估盈亏 <strong class="${cls} num">${sign(p.pnl)}${fmtMoney(Math.abs(p.pnl), currency)} (${fmtPct(p.pnlPct)})</strong></span>
   `;
   el.style.display = 'flex';
 }

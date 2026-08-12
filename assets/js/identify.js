@@ -84,7 +84,7 @@ export async function identify(raw) {
  * @returns {Promise<IdentifyResult>}
  */
 export async function identifyWithMarket(market, code) {
-  return await enrich(market, code, false, []);
+	return await enrich(market, code, false, [], undefined, market === 'sh' || market === 'sz');
 }
 
 /**
@@ -107,14 +107,15 @@ export function lookupFund(code) {
  * @returns {{market: string|null, code: string, prefix: string|null}}
  */
 export function detectMarket(raw) {
-  const lower = raw.toLowerCase();
-  const prefixMap = { sh: 'sh', sz: 'sz', us: 'us', hk: 'hk', of: 'of' };
-  for (const [pfx, market] of Object.entries(prefixMap)) {
-    if (lower.startsWith(pfx)) {
-      const code = raw.slice(pfx.length);
-      return { market, code, prefix: pfx };
-    }
-  }
+	const separated = raw.match(/^(sh|sz|us|hk|of)[:.\-/](.+)$/i);
+	if (separated) {
+		return { market: separated[1].toLowerCase(), code: separated[2], prefix: separated[1].toLowerCase() };
+	}
+	// 无分隔符前缀仅用于数字代码，避免 SHOP、HKIT 等美股代码被误识别。
+	const compact = raw.match(/^(sh|sz|of)(\d{6})$/i) || raw.match(/^(hk)(\d{1,5})$/i);
+	if (compact) {
+		return { market: compact[1].toLowerCase(), code: compact[2], prefix: compact[1].toLowerCase() };
+	}
   return { market: null, code: raw, prefix: null };
 }
 
@@ -129,17 +130,9 @@ export function getCandidates(code) {
 
 /* ── 内部 ── */
 
-async function enrich(market, code, ambiguous, candidates, fundEntryOverride) {
+async function enrich(market, code, ambiguous, candidates, fundEntryOverride, forceStock = false) {
   let name = '', type = '', indexName = '', currency = 'CNY', priceSource = 'quote';
-
-  // 自动纠正：sh/sz 前缀但与代码段规则不符的基金，还原为场外
-  if ((market === 'sh' || market === 'sz') && /^\d{6}$/.test(code)) {
-    const entry = fundEntryOverride || lookupFund(code);
-    if (entry) {
-      const auto = fundMarket(code);
-      if (auto === 'of') market = 'of';
-    }
-  }
+	let suggestion = null;
 
   // 货币推断
   if (market === 'us') currency = 'USD';
@@ -152,8 +145,10 @@ async function enrich(market, code, ambiguous, candidates, fundEntryOverride) {
   if (market === 'us' || market === 'hk') {
     type = 'stock';
   } else if (market === 'sh' || market === 'sz') {
-    const entry = fundEntryOverride || lookupFund(code);
-    if (entry) {
+	const entry = forceStock ? null : (fundEntryOverride || lookupFund(code));
+	if (forceStock) {
+	  type = 'stock';
+	} else if (entry) {
       type = classifyType(entry.ftype);
       name = entry.name;
     } else {
@@ -177,11 +172,12 @@ async function enrich(market, code, ambiguous, candidates, fundEntryOverride) {
 
   // 远程搜索补充信息（美股/港股跳过——天天基金只覆盖中国基金）
   // 如果本地已能匹配指数，跳过远程调用
-  if (!indexName && (market === 'sh' || market === 'sz' || market === 'of')) {
-    const sugg = await suggest(code);
+	if (!forceStock && !indexName && (market === 'sh' || market === 'sz' || market === 'of')) {
+	const sugg = await suggest(code);
+	suggestion = sugg;
     if (sugg) {
       if (!name) name = sugg.name;
-      if (sugg.ftype && !type) type = classifyType(sugg.ftype);
+	  if (sugg.ftype) type = classifyType(sugg.ftype);
       indexName = mapIndex({ name: name || sugg.name, othername: sugg.othername || '', type });
     } else if (name) {
       indexName = mapIndex({ name, othername: '', type });
@@ -195,7 +191,9 @@ async function enrich(market, code, ambiguous, candidates, fundEntryOverride) {
   // 场外基金取净值
   let nav = null;
   if (market === 'of') {
-    nav = await fetchNav(code);
+	nav = suggestion && suggestion.nav != null
+	  ? { nav: suggestion.nav, navDate: suggestion.navDate || '', change: 0, changePct: 0 }
+	  : await fetchNav(code);
   }
 
   const result = {

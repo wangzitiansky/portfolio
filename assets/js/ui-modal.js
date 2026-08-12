@@ -19,6 +19,7 @@ let currentResult = null;    // 当前识别结果
 let autoComp = null;
 let lastRequestSeq = 0;
 let _modalReady = false;     // 防止初始化期间误触发保存
+let modalAsyncCleanup = null;
 
 /**
  * 打开弹窗
@@ -48,6 +49,13 @@ export function openAddModal(onSave, editHolding) {
   const marketSelect = document.getElementById('market-select');
   const saveBtn = document.getElementById('modal-save');
   const errorBar = document.getElementById('modal-error');
+  let identifyTimer;
+  let previewTimer;
+  modalAsyncCleanup = () => {
+    clearTimeout(identifyTimer);
+    clearTimeout(previewTimer);
+    lastRequestSeq++;
+  };
 
   // 诊断：检查关键元素是否齐全
   const missing = [];
@@ -123,14 +131,16 @@ export function openAddModal(onSave, editHolding) {
   });
 
   // 代码输入 → 触发识别（防抖 300ms）
-  let identifyTimer;
   codeInput.addEventListener('input', () => {
     clearTimeout(identifyTimer);
-    clearIdentification();
+    lastRequestSeq++;
+    currentResult = null;
+    clearIdentification(costInput);
     identifyTimer = setTimeout(() => triggerIdentify(), 300);
   });
 
   async function triggerIdentify() {
+    if (!modalEl) return;
     const raw = codeInput.value.trim();
     if (!raw || raw.length < 2) return;
 
@@ -165,8 +175,12 @@ export function openAddModal(onSave, editHolding) {
     const opt = e.target.closest('[data-market]');
     if (!opt) return;
     const market = opt.dataset.market;
-    marketSelect.querySelectorAll('.pa-market-select__option').forEach(el => el.classList.remove('pa-market-select__option--active'));
+    marketSelect.querySelectorAll('.pa-market-select__option').forEach(el => {
+      el.classList.remove('pa-market-select__option--active');
+      el.setAttribute('aria-checked', 'false');
+    });
     opt.classList.add('pa-market-select__option--active');
+    opt.setAttribute('aria-checked', 'true');
 
     const seq = ++lastRequestSeq;
     try {
@@ -220,7 +234,6 @@ export function openAddModal(onSave, editHolding) {
   }
 
   // 数量/成本 → 预览更新（updatePreview 带防抖，避免频繁 fetchQuote）
-  let previewTimer;
   const debouncedPreview = () => {
     clearTimeout(previewTimer);
     previewTimer = setTimeout(() => updatePreview(), 300);
@@ -252,7 +265,7 @@ export function openAddModal(onSave, editHolding) {
     const marketValue = price !== undefined ? price * qty : cost * qty;
 
     const cr2 = currentResult;  // await 后再次检查
-    if (!cr2) { clearPreview(previewEl); return; }
+    if (!cr2 || cr2 !== cr) { clearPreview(previewEl); return; }
     renderPreview(previewEl, { marketValue, pnl, pnlPct, currency: cr2.currency || 'CNY' });
   }
 
@@ -337,6 +350,11 @@ export function openAddModal(onSave, editHolding) {
 /** 关闭弹窗 */
 export function closeAddModal() {
   _modalReady = false;
+  if (modalAsyncCleanup) {
+    modalAsyncCleanup();
+    modalAsyncCleanup = null;
+  }
+  if (autoComp?.destroy) autoComp.destroy();
   if (modalEl) {
     modalEl.remove();
     modalEl = null;
@@ -351,7 +369,7 @@ export function closeAddModal() {
 
 /* ── 内部工具 ── */
 
-function clearIdentification() {
+function clearIdentification(costInput) {
   document.getElementById('input-name').textContent = '—';
   document.getElementById('input-type').textContent = '—';
   document.getElementById('input-index').textContent = '—';
@@ -361,7 +379,7 @@ function clearIdentification() {
   document.getElementById('market-select').style.display = 'none';
   const hint = document.getElementById('cost-hint');
   if (hint) hint.textContent = '';
-  costInput.readOnly = false;
+  if (costInput) costInput.readOnly = false;
   hideFieldError('code');
 }
 

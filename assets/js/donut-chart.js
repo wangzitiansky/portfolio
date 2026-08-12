@@ -34,6 +34,16 @@ let _instanceId = 0;
  */
 export function renderDonut(el, data, centerId, legendId) {
   if (!el) return;
+	el.replaceChildren();
+	const legendEl = legendId ? document.getElementById(legendId) : null;
+	if (legendEl) legendEl.replaceChildren();
+	const center = centerId ? document.getElementById(centerId) : null;
+	if (center) {
+		const label = center.querySelector('.pa-wheel__center-label');
+		const value = center.querySelector('.pa-wheel__center-value');
+		if (label) label.textContent = '暂无数据';
+		if (value) value.textContent = fmtMoney(0);
+	}
 
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total <= 0) return;
@@ -50,7 +60,6 @@ export function renderDonut(el, data, centerId, legendId) {
   main.sort((a, b) => b.value - a.value);
 
   // ── 清空容器 ──
-  el.innerHTML = '';
   el.classList.add('pa-chart');
 
   // ── 常量 ──
@@ -176,12 +185,27 @@ export function renderDonut(el, data, centerId, legendId) {
     text.style.pointerEvents = 'none';
 
     if (isSmall) {
-      text.innerHTML =
-        `<tspan x="${lx}" dy="0" font-weight="800" font-size="14">${d.pct.toFixed(1)}%</tspan>`;
+	  const pctSpan = document.createElementNS(svgNS, 'tspan');
+	  pctSpan.setAttribute('x', lx);
+	  pctSpan.setAttribute('dy', '0');
+	  pctSpan.setAttribute('font-weight', '800');
+	  pctSpan.setAttribute('font-size', '14');
+	  pctSpan.textContent = `${d.pct.toFixed(1)}%`;
+	  text.appendChild(pctSpan);
     } else {
-      text.innerHTML =
-        `<tspan x="${lx}" dy="-12" font-weight="700" font-size="${shortName.length > 6 ? 11 : 12}">${shortName}</tspan>` +
-        `<tspan x="${lx}" dy="14" fill="#B0B0C0" font-size="9">${d.pct.toFixed(1)}%</tspan>`;
+	  const nameSpan = document.createElementNS(svgNS, 'tspan');
+	  nameSpan.setAttribute('x', lx);
+	  nameSpan.setAttribute('dy', '-12');
+	  nameSpan.setAttribute('font-weight', '700');
+	  nameSpan.setAttribute('font-size', shortName.length > 6 ? '11' : '12');
+	  nameSpan.textContent = shortName;
+	  const pctSpan = document.createElementNS(svgNS, 'tspan');
+	  pctSpan.setAttribute('x', lx);
+	  pctSpan.setAttribute('dy', '14');
+	  pctSpan.setAttribute('fill', '#B0B0C0');
+	  pctSpan.setAttribute('font-size', '9');
+	  pctSpan.textContent = `${d.pct.toFixed(1)}%`;
+	  text.append(nameSpan, pctSpan);
     }
     labelsG.appendChild(text);
 
@@ -200,15 +224,22 @@ export function renderDonut(el, data, centerId, legendId) {
 
   // ── 图例 ──
   if (legendId) {
-    const legendEl = document.getElementById(legendId);
     if (legendEl) {
-      legendEl.innerHTML = main.map((d, i) =>
-        `<div class="pa-chart-legend__item">
-          <span class="pa-chart-legend__dot" style="background:${d.color[0]}"></span>
-          <span>${d.name}</span>
-          <span class="pa-chart-legend__pct">${d.pct.toFixed(1)}%</span>
-        </div>`
-      ).join('');
+	  legendEl.replaceChildren();
+	  for (const d of main) {
+		const itemEl = document.createElement('div');
+		itemEl.className = 'pa-chart-legend__item';
+		const dot = document.createElement('span');
+		dot.className = 'pa-chart-legend__dot';
+		dot.style.background = d.color[0];
+		const name = document.createElement('span');
+		name.textContent = d.name;
+		const pct = document.createElement('span');
+		pct.className = 'pa-chart-legend__pct';
+		pct.textContent = `${d.pct.toFixed(1)}%`;
+		itemEl.append(dot, name, pct);
+		legendEl.appendChild(itemEl);
+	  }
     }
   }
 

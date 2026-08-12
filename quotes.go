@@ -20,12 +20,11 @@ const qtTimeout = 8
 const maxPerURL = 50
 
 var (
-	qtLineRe  = regexp.MustCompile(`v_([^=]+)="([^"]*)"`)
-	qtDateRe  = regexp.MustCompile(`^\d{14}$`)
+	qtLineRe = regexp.MustCompile(`v_([^=]+)="([^"]*)"`)
 
 	// 行情缓存：短期 TTL 避免自动刷新重复拉取
-	quoteCache   = map[string]quoteCacheEntry{}
-	quoteCacheMu sync.Mutex
+	quoteCache    = map[string]quoteCacheEntry{}
+	quoteCacheMu  sync.Mutex
 	quoteCacheTTL = 10 * time.Second
 )
 
@@ -123,14 +122,6 @@ func fetchBatch(items []struct{ Market, Code string }) map[string]Quote {
 	}
 	text := decodeGBK(body)
 
-	parsed := 0
-	for _, it := range items {
-		if _, ok := results[it.Market+it.Code]; ok {
-			parsed++
-		}
-	}
-	log.Printf("[quotes] %d/%d OK (%dms)", parsed, len(codes), time.Since(start).Milliseconds())
-
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(line)
 		m := qtLineRe.FindStringSubmatch(line)
@@ -150,6 +141,14 @@ func fetchBatch(items []struct{ Market, Code string }) map[string]Quote {
 			results[key] = *q
 		}
 	}
+
+	parsed := 0
+	for _, it := range items {
+		if _, ok := results[it.Market+it.Code]; ok {
+			parsed++
+		}
+	}
+	log.Printf("[quotes] %d/%d OK (%dms)", parsed, len(items), time.Since(start).Milliseconds())
 
 	// 写入缓存
 	quoteCacheMu.Lock()
@@ -218,7 +217,8 @@ func parseUS(market, code string, p []string) *Quote {
 }
 
 func parseHK(market, code string, p []string) *Quote {
-	price := parseNum(p[29])
+	// 腾讯港股响应与 A/美股一样，p[3] 是现价；p[29] 是成交量。
+	price := parseNum(p[3])
 	if price == 0 {
 		return nil
 	}
@@ -233,7 +233,7 @@ func parseHK(market, code string, p []string) *Quote {
 	return &Quote{
 		Code: code, Market: market, Name: p[1], Price: price,
 		Change: parseNum(p[31]), ChangePct: parsePct(p[32], false),
-		Currency: currency, TS: parseTs(p[30]),
+		Currency: currency, TS: parseMarketTs(p[30], time.FixedZone("CST", 8*3600)),
 	}
 }
 
@@ -263,25 +263,25 @@ func parsePct(s string, normalizeInt bool) float64 {
 }
 
 func parseTs(s string) int64 {
+	return parseMarketTs(s, time.FixedZone("CST", 8*3600))
+}
+
+func parseDateTs(s string) int64 {
+	return parseMarketTs(s, time.Local)
+}
+
+func parseMarketTs(s string, loc *time.Location) int64 {
+	s = strings.TrimSpace(s)
 	if s == "" {
-		return time.Now().UnixMilli()
+		return 0
 	}
-	if qtDateRe.MatchString(s) {
-		t, err := time.ParseInLocation("20060102150405", s, time.FixedZone("CST", 8*3600))
+	formats := []string{"20060102150405", "2006/01/02 15:04:05", "2006-01-02 15:04:05", "2006-01-02"}
+	for _, format := range formats {
+		t, err := time.ParseInLocation(format, s, loc)
 		if err == nil {
 			return t.UnixMilli()
 		}
 	}
-	return time.Now().UnixMilli()
-}
-
-func parseDateTs(s string) int64 {
-	if s == "" {
-		return time.Now().UnixMilli()
-	}
-	t, err := time.Parse("2006-01-02", s)
-	if err != nil {
-		return time.Now().UnixMilli()
-	}
-	return t.UnixMilli()
+	// 未知格式不能伪装成“刚刚更新”；返回 0 会让 stale 判定生效。
+	return 0
 }

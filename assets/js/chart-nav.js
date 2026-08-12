@@ -22,6 +22,8 @@ const INTERVAL_MAP = Object.fromEntries(INTERVALS.map((i) => [i.key, i]));
 let _chart = null;
 let _series = null;
 let _rangeEl = null;
+let _tooltipEl = null;
+let _resizeObserver = null;
 let _legendName = SYMBOL_NAME; // 随粒度切换，如「组合净值 · 1W」
 let _dataRef = [];             // 原始日频数据引用（setChartInterval 聚合用）
 
@@ -116,6 +118,7 @@ export function renderNavTrend(el, data) {
 
   // ---- Floating Tooltip（官方 tooltip 示例）---------------------------------
   const tooltip = document.createElement('div');
+	_tooltipEl = tooltip;
   tooltip.style.cssText =
     'position:absolute;display:none;z-index:3;pointer-events:none;' +
     'padding:6px 10px;border-radius:6px;' +
@@ -133,6 +136,10 @@ export function renderNavTrend(el, data) {
     }
 
     const seriesData = param.seriesData.get(_series);
+	if (!seriesData) {
+	  tooltip.style.display = 'none';
+	  return;
+	}
     const price = seriesData.value !== undefined ? seriesData.value : seriesData.close;
     if (price === undefined) {
       tooltip.style.display = 'none';
@@ -170,14 +177,14 @@ export function renderNavTrend(el, data) {
   });
 
   // ---- Resize -------------------------------------------------------------
-  const ro = new ResizeObserver(() => {
+	_resizeObserver = new ResizeObserver(() => {
     if (!_chart) return;
     const r = container.getBoundingClientRect();
     if (r.width > 0 && r.height > 0) {
       _chart.applyOptions({ width: r.width, height: r.height });
     }
   });
-  ro.observe(container);
+	_resizeObserver.observe(container);
 }
 
 /* ── 粒度切换（对应官方 setChartInterval）────────────────────────────────── */
@@ -286,11 +293,20 @@ export function disposeNavChart() {
 }
 
 function disposeCurrent() {
+	if (_resizeObserver) {
+		_resizeObserver.disconnect();
+		_resizeObserver = null;
+	}
+	if (_tooltipEl) {
+		_tooltipEl.remove();
+		_tooltipEl = null;
+	}
+	if (_rangeEl) _rangeEl.remove();
   if (_chart) {
     try { _chart.remove(); } catch {}
     _chart = null;
     _series = null;
-    _rangeEl = null;
+		_rangeEl = null;
     _legendName = SYMBOL_NAME;
     _dataRef = [];
   }

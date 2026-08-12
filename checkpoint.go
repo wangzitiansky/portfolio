@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Maintenance helper: checkpoint the SQLite WAL into the main db file.
 // Run before committing assets/portfolio.db so the committed snapshot
 // contains all data (the server auto-checkpoints, but running this
