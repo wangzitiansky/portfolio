@@ -198,24 +198,23 @@ export function renderSummaryTable(rows) {
 
   // 8 列，与 holdings 表完全一致
   grid.innerHTML =
-    '<div class="pa-table-wrap"><table class="pa-table">' +
-    '<colgroup><col class="col-name"><col class="col-type"><col class="col-index"><col class="col-pos"><col class="col-price"><col class="col-mv"><col class="col-pnl"><col class="col-act"></colgroup>' +
+    '<div class="pa-table-wrap"><table class="pa-table pa-summary-table">' +
+    '<colgroup><col class="col-summary-name"><col class="col-summary-count"><col class="col-summary-mv"><col class="col-summary-pnl"></colgroup>' +
     '<thead><tr>' +
-    '<th>指数</th><th></th><th></th>' +
-    '<th class="pa-table--r">持仓数</th><th></th>' +
+    '<th>指数</th>' +
+    '<th class="pa-table--r">持仓数</th>' +
     '<th class="pa-table--r">总市值</th>' +
-    '<th class="pa-table--r">总盈亏</th><th></th>' +
+    '<th class="pa-table--r">总盈亏</th>' +
     '</tr></thead><tbody>' +
     summaries.map(s =>
       '<tr>' +
-      '<td><span class="pa-td-name">' + escHtml(s.name) + '</span></td><td></td><td></td>' +
-      '<td class="pa-table--r">' + s.count + '</td><td></td>' +
+      '<td><span class="pa-td-name">' + escHtml(s.name) + '</span></td>' +
+      '<td class="pa-table--r">' + s.count + '</td>' +
       '<td class="pa-table--r pa-table--strong">' + fmtMoney(s.totalCNY, 'CNY') + '</td>' +
       '<td class="pa-table--r"><span class="' + pc(s.totalPnl) + ' pa-table--strong">' +
         sign(s.totalPnl) + Math.abs(s.pnlPct).toFixed(2) + '%</span>' +
         '<div class="pa-table--meta ' + pc(s.totalPnl) + '">' +
         sign(s.totalPnl) + fmtMoney(Math.abs(s.totalPnl), 'CNY') + '</div></td>' +
-      '<td></td>' +
       '</tr>'
     ).join('') +
     '</tbody></table></div>';

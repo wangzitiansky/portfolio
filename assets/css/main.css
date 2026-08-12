@@ -322,6 +322,10 @@
 .pa-table col.col-mv      { width: 14%; }
 .pa-table col.col-pnl     { width: 16%; }
 .pa-table col.col-act     { width:  8%; }
+.pa-summary-table col.col-summary-name  { width: 45%; }
+.pa-summary-table col.col-summary-count { width: 15%; }
+.pa-summary-table col.col-summary-mv    { width: 22%; }
+.pa-summary-table col.col-summary-pnl   { width: 18%; }
 .pa-table thead { border-bottom: 1px solid var(--border); }
 .pa-table th {
   padding: var(--space-3) var(--space-4);
