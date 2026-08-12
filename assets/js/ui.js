@@ -69,7 +69,12 @@ export function renderCards(rows, onEdit, onDelete) {
   _onDelete = onDelete;
 
   if (!_tableReady) {
-    grid.innerHTML = '<div class="pa-table-wrap"><table class="pa-table">' +
+    grid.innerHTML = '<div class="pa-mobile-table-toolbar" aria-label="持仓排序">' +
+      '<span>排序</span>' +
+      '<button type="button" class="pa-mobile-sort" data-sort="marketValueCNY" aria-pressed="true">市值</button>' +
+      '<button type="button" class="pa-mobile-sort" data-sort="pnl" aria-pressed="false">盈亏</button>' +
+      '</div>' +
+      '<div class="pa-table-wrap"><table class="pa-table" aria-label="持仓明细">' +
       '<colgroup><col class="col-name"><col class="col-type"><col class="col-index"><col class="col-pos"><col class="col-price"><col class="col-mv"><col class="col-pnl"><col class="col-act"></colgroup>' +
       '<thead><tr>' +
       '<th>名称 / 代码</th><th>类型</th><th>指数</th>' +
@@ -80,9 +85,9 @@ export function renderCards(rows, onEdit, onDelete) {
       '<th class="pa-table--c">操作</th>' +
       '</tr></thead><tbody></tbody></table></div>';
 
-    grid.querySelectorAll('.pa-th-sort').forEach(th => {
-      th.addEventListener('click', () => {
-        const key = th.dataset.sort;
+    grid.querySelectorAll('.pa-th-sort, .pa-mobile-sort').forEach(control => {
+      control.addEventListener('click', () => {
+        const key = control.dataset.sort;
         if (_sortKey === key) _sortDir *= -1;
         else { _sortKey = key; _sortDir = -1; }
         renderTbody(_currentRows);
@@ -105,10 +110,12 @@ function renderTbody(rows) {
   });
 
   // 更新表头
-  grid.querySelectorAll('.pa-th-sort').forEach(th => {
-    const key = th.dataset.sort;
-    th.classList.toggle('pa-th-sort--active', key === _sortKey);
-    th.textContent = (key === 'marketValueCNY' ? '市值' : '盈亏') + (_sortKey === key ? (_sortDir === -1 ? ' ▾' : ' ▴') : '');
+  grid.querySelectorAll('.pa-th-sort, .pa-mobile-sort').forEach(control => {
+    const key = control.dataset.sort;
+    const active = key === _sortKey;
+    control.classList.toggle('pa-th-sort--active', active);
+    control.textContent = (key === 'marketValueCNY' ? '市值' : '盈亏') + (active ? (_sortDir === -1 ? ' ▾' : ' ▴') : '');
+    if (control.classList.contains('pa-mobile-sort')) control.setAttribute('aria-pressed', String(active));
   });
 
   const tbody = grid.querySelector('tbody');
@@ -130,13 +137,13 @@ function buildRow(r) {
 
   return '<tr data-id="' + escHtml(r.id) + '">' +
     '<td><div class="pa-td-name">' + escHtml(r.name || r.code) + '</div><div class="pa-td-code">' + escHtml(r.code) + '</div></td>' +
-    '<td class="pa-table--type">' + escHtml(cat) + '</td>' +
-    '<td><span class="pa-table--meta">' + escHtml(r.index || '--') + '</span></td>' +
-    '<td class="pa-table--r"><div>' + fmtNum(r.quantity, r.quantity % 1 ? 2 : 0) + ' 份</div><div class="pa-table--meta">' + sym + fmtNum(r.cost, r.cost % 1 ? 4 : 2) + '</div></td>' +
-    '<td class="pa-table--r"><div>' + priceStr + '</div><div class="pa-table--meta">' + cd + '</div></td>' +
-    '<td class="pa-table--r"><div class="pa-table--strong">' + fmtMoney(r.marketValueCNY || r.marketValue, 'CNY') + '</div><div class="pa-table--meta">' + (isForeign ? fmtMoney(r.marketValue, r.currency) : '&nbsp;') + '</div></td>' +
-    '<td class="pa-table--r"><div class="' + pc + ' pa-table--strong">' + sign(r.pnlPct) + Math.abs(r.pnlPct).toFixed(2) + '%</div><div class="' + pc + ' pa-table--meta">' + sign(r.pnl) + fmtMoney(Math.abs(r.pnl), r.currency) + '</div></td>' +
-    '<td class="pa-table--c">' +
+    '<td class="pa-table--type" data-label="类型">' + escHtml(cat) + '</td>' +
+    '<td data-label="指数"><span class="pa-table--meta">' + escHtml(r.index || '--') + '</span></td>' +
+    '<td class="pa-table--r" data-label="持仓 / 成本"><div>' + fmtNum(r.quantity, r.quantity % 1 ? 2 : 0) + ' 份</div><div class="pa-table--meta">' + sym + fmtNum(r.cost, r.cost % 1 ? 4 : 2) + '</div></td>' +
+    '<td class="pa-table--r" data-label="现价"><div>' + priceStr + '</div><div class="pa-table--meta">' + cd + '</div></td>' +
+    '<td class="pa-table--r" data-label="市值"><div class="pa-table--strong">' + fmtMoney(r.marketValueCNY || r.marketValue, 'CNY') + '</div><div class="pa-table--meta">' + (isForeign ? fmtMoney(r.marketValue, r.currency) : '&nbsp;') + '</div></td>' +
+    '<td class="pa-table--r" data-label="盈亏"><div class="' + pc + ' pa-table--strong">' + sign(r.pnlPct) + Math.abs(r.pnlPct).toFixed(2) + '%</div><div class="' + pc + ' pa-table--meta">' + sign(r.pnl) + fmtMoney(Math.abs(r.pnl), r.currency) + '</div></td>' +
+    '<td class="pa-table--c" data-label="操作">' +
       '<button class="pa-btn pa-btn--icon pa-btn--sm" data-action="edit" data-id="' + escHtml(r.id) + '" aria-label="编辑"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>' +
       '<button class="pa-btn pa-btn--icon pa-btn--sm" data-action="delete" data-id="' + escHtml(r.id) + '" aria-label="删除" style="color:var(--danger)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>' +
     '</td></tr>';
@@ -196,9 +203,8 @@ export function renderSummaryTable(rows) {
 
   const pc = s => s >= 0 ? 'up' : 'down';
 
-  // 8 列，与 holdings 表完全一致
   grid.innerHTML =
-    '<div class="pa-table-wrap"><table class="pa-table pa-summary-table">' +
+    '<div class="pa-table-wrap"><table class="pa-table pa-summary-table" aria-label="指数汇总">' +
     '<colgroup><col class="col-summary-name"><col class="col-summary-count"><col class="col-summary-mv"><col class="col-summary-pnl"></colgroup>' +
     '<thead><tr>' +
     '<th>指数</th>' +
@@ -209,9 +215,9 @@ export function renderSummaryTable(rows) {
     summaries.map(s =>
       '<tr>' +
       '<td><span class="pa-td-name">' + escHtml(s.name) + '</span></td>' +
-      '<td class="pa-table--r">' + s.count + '</td>' +
-      '<td class="pa-table--r pa-table--strong">' + fmtMoney(s.totalCNY, 'CNY') + '</td>' +
-      '<td class="pa-table--r"><span class="' + pc(s.totalPnl) + ' pa-table--strong">' +
+      '<td class="pa-table--r" data-label="持仓数">' + s.count + '</td>' +
+      '<td class="pa-table--r pa-table--strong" data-label="总市值">' + fmtMoney(s.totalCNY, 'CNY') + '</td>' +
+      '<td class="pa-table--r" data-label="总盈亏"><span class="' + pc(s.totalPnl) + ' pa-table--strong">' +
         sign(s.totalPnl) + Math.abs(s.pnlPct).toFixed(2) + '%</span>' +
         '<div class="pa-table--meta ' + pc(s.totalPnl) + '">' +
         sign(s.totalPnl) + fmtMoney(Math.abs(s.totalPnl), 'CNY') + '</div></td>' +

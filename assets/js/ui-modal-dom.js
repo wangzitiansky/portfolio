@@ -22,7 +22,7 @@ export function modalTemplate() {
           <div class="pa-field__control" style="position:relative" id="code-container">
             <input class="pa-input" id="input-code" type="text" placeholder="输入代码 或直接填写名称添加现金/存款" autocomplete="off" aria-describedby="error-code">
           </div>
-          <div style="display:flex;gap:8px;margin-top:4px">
+          <div class="pa-quick-actions">
             <button type="button" class="pa-btn pa-btn--secondary pa-btn--sm quick-cash" data-name="银行存款">🏦 银行存款</button>
             <button type="button" class="pa-btn pa-btn--secondary pa-btn--sm quick-cash" data-name="现金">💵 现金</button>
             <button type="button" class="pa-btn pa-btn--secondary pa-btn--sm quick-cash" data-name="货币基金">📊 货币基金</button>
