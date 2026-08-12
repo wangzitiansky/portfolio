@@ -4,3 +4,8 @@ name = "portfolio"
 
 [setup]
 script = "git push upstream main"
+
+[[actions]]
+name = "upstream 推送"
+icon = "tool"
+command = "git push upstream main"

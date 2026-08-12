@@ -74,6 +74,8 @@ export function modalTemplate() {
           <div class="pa-field__hint pa-field__hint--info" id="amount-hint">填写实际支出总额（含手续费）</div>
           <div class="pa-field__error" id="error-amount"></div>
         </div>
+        <!-- 重复基金合并提示 -->
+        <div class="pa-merge-notice" id="fund-merge-notice" aria-live="polite" style="display:none"></div>
         <!-- 账户 -->
         <div class="pa-field" id="field-account">
           <label class="pa-field__label" for="input-account">券商/账户</label>

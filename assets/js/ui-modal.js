@@ -7,7 +7,9 @@ import { renderPreview, clearPreview } from './ui-preview.js';
 import { showToast } from './ui-toast.js';
 import { fmtMoney, trendClass, sign, typeLabel } from './compute.js';
 import { saveHoldings, getHoldings, genId } from './storage.js';
-import { calculateUnitCost, formatUnitCost, isFundAsset } from './holding-cost.js';
+import {
+  calculateUnitCost, findFundMergeMatches, formatUnitCost, isFundAsset, mergeFundHolding
+} from './holding-cost.js';
 async function fetchQuote({ market, code }) {
   const resp = await fetch(`/api/quote?market=${encodeURIComponent(market)}&code=${encodeURIComponent(code)}`);
   if (!resp.ok) return null;
@@ -54,6 +56,8 @@ export function openAddModal(onSave, editHolding) {
   const amountInput = document.getElementById('input-amount');
   const amountLabelText = document.getElementById('amount-label-text');
   const amountHint = document.getElementById('amount-hint');
+  const mergeNotice = document.getElementById('fund-merge-notice');
+  const accountInput = document.getElementById('input-account');
   const previewEl = document.getElementById('modal-preview');
   const marketSelect = document.getElementById('market-select');
   const saveBtn = document.getElementById('modal-save');
@@ -75,6 +79,7 @@ export function openAddModal(onSave, editHolding) {
   if (!costInput) missing.push('input-cost');
   if (!amountInput) missing.push('input-amount');
   if (!costModeControl) missing.push('cost-mode');
+  if (!mergeNotice) missing.push('fund-merge-notice');
   if (missing.length > 0) {
     throw new Error('弹窗初始化失败：缺少元素 ' + missing.join(', '));
   }
@@ -102,7 +107,7 @@ export function openAddModal(onSave, editHolding) {
     costInput.value = editHolding.cost;
     setCostMode('unit');
     // 回填账户
-    document.getElementById('input-account').value = editHolding.account || '';
+    accountInput.value = editHolding.account || '';
     // 币种提示
     const hint = document.getElementById('cost-hint');
     if (editHolding.currency === 'USD') hint.textContent = 'USD · 成本价为美元价格';
@@ -149,6 +154,7 @@ export function openAddModal(onSave, editHolding) {
     lastRequestSeq++;
     currentResult = null;
     setCostMode('unit', { hide: true, clearAmount: true });
+    hideMergeNotice();
     clearIdentification(costInput);
     identifyTimer = setTimeout(() => triggerIdentify(), 300);
   });
@@ -232,6 +238,7 @@ export function openAddModal(onSave, editHolding) {
 
     const fundAsset = isFundAsset(result);
     setCostMode(fundAsset ? costMode : 'unit', { hide: !fundAsset, clearAmount: !fundAsset });
+    updateMergeNotice();
 
     // 场外基金提示
     if (result.priceSource === 'nav') {
@@ -257,16 +264,23 @@ export function openAddModal(onSave, editHolding) {
   };
   qtyInput.addEventListener('input', () => {
     updateCalculatedCostHint();
+    updateMergeNotice();
     validateAndUpdateSave();
     debouncedPreview();
   });
-  costInput.addEventListener('input', () => { validateAndUpdateSave(); debouncedPreview(); });
+  costInput.addEventListener('input', () => {
+    updateMergeNotice();
+    validateAndUpdateSave();
+    debouncedPreview();
+  });
   amountInput.addEventListener('input', () => {
     updateCalculatedCostHint();
+    updateMergeNotice();
     validateAndUpdateSave();
     debouncedPreview();
   });
   indexManual.addEventListener('input', () => validateAndUpdateSave());
+  accountInput.addEventListener('input', () => updateMergeNotice());
 
   costModeControl.addEventListener('click', (e) => {
     const option = e.target.closest('[data-cost-mode]');
@@ -295,6 +309,7 @@ export function openAddModal(onSave, editHolding) {
 
     updateAmountCurrency();
     updateCalculatedCostHint();
+    updateMergeNotice();
     validateAndUpdateSave();
     updatePreview();
   }
@@ -322,12 +337,86 @@ export function openAddModal(onSave, editHolding) {
     return Number.isFinite(cost) && cost >= 0 ? cost : null;
   }
 
+  function getIncomingTotalCost(quantity, cost) {
+    return costMode === 'amount' ? Number(amountInput.value) : quantity * cost;
+  }
+
+  function getMergeResult(quantity, cost) {
+    if (editHolding || !isFundAsset(currentResult)) return null;
+    const incoming = {
+      market: currentResult.market,
+      code: currentResult.code || codeInput.value.trim(),
+      type: currentResult.type,
+      quantity,
+      cost,
+      updatedAt: Date.now()
+    };
+    const matches = findFundMergeMatches(getHoldings(), incoming);
+    if (matches.length === 0) return null;
+    return mergeFundHolding(getHoldings(), incoming, {
+      incomingTotalCost: getIncomingTotalCost(quantity, cost)
+    });
+  }
+
+  function updateMergeNotice() {
+    if (editHolding || !isFundAsset(currentResult)) {
+      hideMergeNotice();
+      return;
+    }
+
+    const matches = findFundMergeMatches(getHoldings(), currentResult);
+    if (matches.length === 0) {
+      hideMergeNotice();
+      return;
+    }
+
+    const existingQuantity = matches.reduce((sum, holding) => sum + Number(holding.quantity || 0), 0);
+    const canonical = matches.reduce((earliest, holding) =>
+      (Number(holding.createdAt) || Number.MAX_SAFE_INTEGER) < (Number(earliest.createdAt) || Number.MAX_SAFE_INTEGER)
+        ? holding : earliest
+    );
+    const quantity = costMode === 'amount' ? Number(qtyInput.value) : parseFloat(qtyInput.value);
+    const cost = getEffectiveCost();
+    const mergeResult = Number.isFinite(quantity) && quantity > 0 && cost !== null
+      ? getMergeResult(quantity, cost)
+      : null;
+
+    let detail = `发现已有 <strong>${formatDisplayNumber(existingQuantity)}</strong> 份，保存时将自动合并`;
+    if (mergeResult) {
+      detail = `合并后 <strong>${formatDisplayNumber(mergeResult.holding.quantity)}</strong> 份，平均成本 <strong>${currencySymbol(currentResult.currency)}${formatUnitCost(mergeResult.holding.cost)}</strong>`;
+    }
+    if ((accountInput.value.trim() || '') !== (canonical.account || '')) {
+      const account = canonical.account ? `“${escapeHtml(canonical.account)}”` : '空账户';
+      detail += `；账户将保留为 ${account}`;
+    }
+    if (matches.length > 1) detail += `；同时整理 ${matches.length} 条历史记录`;
+
+    mergeNotice.innerHTML = detail;
+    mergeNotice.style.display = 'block';
+  }
+
+  function hideMergeNotice() {
+    mergeNotice.textContent = '';
+    mergeNotice.style.display = 'none';
+  }
+
+  function formatDisplayNumber(value) {
+    return Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 6 });
+  }
+
+  function currencySymbol(currency) {
+    return currency === 'USD' ? '$' : currency === 'HKD' ? 'HK$' : '¥';
+  }
+
   async function updatePreview() {
     const cr = currentResult;  // 快照，防止 await 期间被其他代码置 null
     if (!cr || !cr.market) { clearPreview(previewEl); return; }
-    const qty = costMode === 'amount' ? Number(qtyInput.value) : parseFloat(qtyInput.value);
-    const cost = getEffectiveCost();
-    if (!Number.isFinite(qty) || qty <= 0 || cost === null) { clearPreview(previewEl); return; }
+    const enteredQty = costMode === 'amount' ? Number(qtyInput.value) : parseFloat(qtyInput.value);
+    const enteredCost = getEffectiveCost();
+    if (!Number.isFinite(enteredQty) || enteredQty <= 0 || enteredCost === null) { clearPreview(previewEl); return; }
+    const mergeResult = getMergeResult(enteredQty, enteredCost);
+    const qty = mergeResult ? mergeResult.holding.quantity : enteredQty;
+    const cost = mergeResult ? mergeResult.holding.cost : enteredCost;
 
     // 尝试拉行情
     let price;
@@ -390,19 +479,33 @@ export function openAddModal(onSave, editHolding) {
       };
 
       const existing = getHoldings();
+      let savedHolding = holding;
+      let holdingsToSave = existing;
+      let wasMerged = false;
       if (editHolding) {
         // 编辑模式：替换旧记录
         const idx = existing.findIndex(h => h.id === editHolding.id);
-        if (idx >= 0) existing[idx] = holding;
-        else existing.push(holding);
+        if (idx >= 0) holdingsToSave[idx] = holding;
+        else holdingsToSave.push(holding);
       } else {
-        existing.push(holding);
+        const result = mergeFundHolding(existing, holding, {
+          incomingTotalCost: getIncomingTotalCost(qty, cost)
+        });
+        holdingsToSave = result.holdings;
+        savedHolding = result.holding;
+        wasMerged = result.merged;
       }
-      await saveHoldings(existing);
+      await saveHoldings(holdingsToSave);
 
-      if (onSaveCallback) await onSaveCallback(holding);
+      if (onSaveCallback) await onSaveCallback(savedHolding);
       closeAddModal();
-      showToast(editHolding ? '已更新 ' + (holding.name || holding.code) : '已添加 ' + (holding.name || holding.code), 'success');
+      const displayName = savedHolding.name || savedHolding.code;
+      const message = editHolding
+        ? '已更新 ' + displayName
+        : wasMerged
+          ? `已合并 ${displayName}，当前共 ${formatDisplayNumber(savedHolding.quantity)} 份`
+          : '已添加 ' + displayName;
+      showToast(message, 'success');
     } catch (e) {
       console.error('保存持仓失败:', e);
       showSaveLoading(false);
