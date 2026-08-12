@@ -1,5 +1,8 @@
-// Temporary helper: checkpoint SQLite WAL into the main db file before committing.
-// Run: go run checkpoint.go  |  then delete this file.
+// Maintenance helper: checkpoint the SQLite WAL into the main db file.
+// Run before committing assets/portfolio.db so the committed snapshot
+// contains all data (the server auto-checkpoints, but running this
+// guarantees the WAL is empty and the main file is complete).
+// Run: go run checkpoint.go
 package main
 
 import (
