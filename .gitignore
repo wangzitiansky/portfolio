@@ -1,8 +1,7 @@
 # Binaries
 portfolio-server
 
-# Database
-*.db
+# Database — commit the main .db file (backup/recovery), never the WAL side files.
 *.db-shm
 *.db-wal
 
