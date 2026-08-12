@@ -7,6 +7,7 @@ import { renderPreview, clearPreview } from './ui-preview.js';
 import { showToast } from './ui-toast.js';
 import { fmtMoney, trendClass, sign, typeLabel } from './compute.js';
 import { saveHoldings, getHoldings, genId } from './storage.js';
+import { calculateUnitCost, formatUnitCost, isFundAsset } from './holding-cost.js';
 async function fetchQuote({ market, code }) {
   const resp = await fetch(`/api/quote?market=${encodeURIComponent(market)}&code=${encodeURIComponent(code)}`);
   if (!resp.ok) return null;
@@ -44,11 +45,20 @@ export function openAddModal(onSave, editHolding) {
   const indexEl = document.getElementById('input-index');
   const indexManual = document.getElementById('input-index-manual');
   const qtyInput = document.getElementById('input-quantity');
+  const qtyLabelText = document.getElementById('quantity-label-text');
+  const costModeField = document.getElementById('field-cost-mode');
+  const costModeControl = document.getElementById('cost-mode');
+  const costField = document.getElementById('field-cost');
   const costInput = document.getElementById('input-cost');
+  const amountField = document.getElementById('field-amount');
+  const amountInput = document.getElementById('input-amount');
+  const amountLabelText = document.getElementById('amount-label-text');
+  const amountHint = document.getElementById('amount-hint');
   const previewEl = document.getElementById('modal-preview');
   const marketSelect = document.getElementById('market-select');
   const saveBtn = document.getElementById('modal-save');
   const errorBar = document.getElementById('modal-error');
+  let costMode = 'unit';
   let identifyTimer;
   let previewTimer;
   modalAsyncCleanup = () => {
@@ -63,6 +73,8 @@ export function openAddModal(onSave, editHolding) {
   if (!saveBtn) missing.push('modal-save');
   if (!qtyInput) missing.push('input-quantity');
   if (!costInput) missing.push('input-cost');
+  if (!amountInput) missing.push('input-amount');
+  if (!costModeControl) missing.push('cost-mode');
   if (missing.length > 0) {
     throw new Error('弹窗初始化失败：缺少元素 ' + missing.join(', '));
   }
@@ -88,6 +100,7 @@ export function openAddModal(onSave, editHolding) {
     // 回填数量和成本
     qtyInput.value = editHolding.quantity;
     costInput.value = editHolding.cost;
+    setCostMode('unit');
     // 回填账户
     document.getElementById('input-account').value = editHolding.account || '';
     // 币种提示
@@ -135,6 +148,7 @@ export function openAddModal(onSave, editHolding) {
     clearTimeout(identifyTimer);
     lastRequestSeq++;
     currentResult = null;
+    setCostMode('unit', { hide: true, clearAmount: true });
     clearIdentification(costInput);
     identifyTimer = setTimeout(() => triggerIdentify(), 300);
   });
@@ -216,6 +230,9 @@ export function openAddModal(onSave, editHolding) {
     else if (result.currency === 'HKD') hint.textContent = 'HKD · 成本价为港币价格';
     else hint.textContent = '';
 
+    const fundAsset = isFundAsset(result);
+    setCostMode(fundAsset ? costMode : 'unit', { hide: !fundAsset, clearAmount: !fundAsset });
+
     // 场外基金提示
     if (result.priceSource === 'nav') {
       const navInfo = result.nav ? ` · 净值 ${fmtMoney(result.nav)} (${result.navDate})` : '';
@@ -238,16 +255,79 @@ export function openAddModal(onSave, editHolding) {
     clearTimeout(previewTimer);
     previewTimer = setTimeout(() => updatePreview(), 300);
   };
-  qtyInput.addEventListener('input', () => { validateAndUpdateSave(); debouncedPreview(); });
+  qtyInput.addEventListener('input', () => {
+    updateCalculatedCostHint();
+    validateAndUpdateSave();
+    debouncedPreview();
+  });
   costInput.addEventListener('input', () => { validateAndUpdateSave(); debouncedPreview(); });
+  amountInput.addEventListener('input', () => {
+    updateCalculatedCostHint();
+    validateAndUpdateSave();
+    debouncedPreview();
+  });
   indexManual.addEventListener('input', () => validateAndUpdateSave());
+
+  costModeControl.addEventListener('click', (e) => {
+    const option = e.target.closest('[data-cost-mode]');
+    if (!option || !isFundAsset(currentResult)) return;
+    setCostMode(option.dataset.costMode);
+    if (costMode === 'amount') amountInput.focus();
+    else costInput.focus();
+  });
+
+  function setCostMode(mode, options = {}) {
+    const fundAsset = isFundAsset(currentResult);
+    const canUseAmount = fundAsset && !options.hide;
+    costMode = canUseAmount && mode === 'amount' ? 'amount' : 'unit';
+
+    costModeField.style.display = canUseAmount ? 'flex' : 'none';
+    costField.style.display = costMode === 'unit' ? 'flex' : 'none';
+    amountField.style.display = costMode === 'amount' ? 'flex' : 'none';
+    qtyLabelText.textContent = costMode === 'amount' ? '确认份额' : '持仓数量';
+    if (options.clearAmount) amountInput.value = '';
+
+    costModeControl.querySelectorAll('[data-cost-mode]').forEach((option) => {
+      const active = option.dataset.costMode === costMode;
+      option.classList.toggle('pa-entry-mode__option--active', active);
+      option.setAttribute('aria-checked', String(active));
+    });
+
+    updateAmountCurrency();
+    updateCalculatedCostHint();
+    validateAndUpdateSave();
+    updatePreview();
+  }
+
+  function updateAmountCurrency() {
+    const currency = currentResult?.currency || 'CNY';
+    amountLabelText.textContent = `投入金额（${currency}）`;
+  }
+
+  function updateCalculatedCostHint() {
+    if (costMode !== 'amount') return;
+    const cost = calculateUnitCost(amountInput.value, qtyInput.value);
+    if (cost === null) {
+      amountHint.textContent = '填写实际支出总额（含手续费）';
+      return;
+    }
+    const currency = currentResult?.currency || 'CNY';
+    const symbol = currency === 'USD' ? '$' : currency === 'HKD' ? 'HK$' : '¥';
+    amountHint.textContent = `自动计算成本价：${symbol}${formatUnitCost(cost)} / 份`;
+  }
+
+  function getEffectiveCost() {
+    if (costMode === 'amount') return calculateUnitCost(amountInput.value, qtyInput.value);
+    const cost = parseFloat(costInput.value);
+    return Number.isFinite(cost) && cost >= 0 ? cost : null;
+  }
 
   async function updatePreview() {
     const cr = currentResult;  // 快照，防止 await 期间被其他代码置 null
     if (!cr || !cr.market) { clearPreview(previewEl); return; }
-    const qty = parseFloat(qtyInput.value);
-    const cost = parseFloat(costInput.value);
-    if (isNaN(qty) || qty <= 0 || isNaN(cost) || cost < 0) { clearPreview(previewEl); return; }
+    const qty = costMode === 'amount' ? Number(qtyInput.value) : parseFloat(qtyInput.value);
+    const cost = getEffectiveCost();
+    if (!Number.isFinite(qty) || qty <= 0 || cost === null) { clearPreview(previewEl); return; }
 
     // 尝试拉行情
     let price;
@@ -271,9 +351,9 @@ export function openAddModal(onSave, editHolding) {
 
   function validateAndUpdateSave() {
     const codeVal = codeInput.value.trim();
-    const qty = parseFloat(qtyInput.value);
-    const cost = parseFloat(costInput.value);
-    const valid = codeVal.length > 0 && qty > 0 && cost >= 0;
+    const qty = costMode === 'amount' ? Number(qtyInput.value) : parseFloat(qtyInput.value);
+    const cost = getEffectiveCost();
+    const valid = codeVal.length > 0 && Number.isFinite(qty) && qty > 0 && cost !== null;
     saveBtn.disabled = !valid;
   }
 
@@ -285,8 +365,11 @@ export function openAddModal(onSave, editHolding) {
     showSaveLoading(true);
 
     try {
-      const qty = parseFloat(qtyInput.value);
-      const cost = parseFloat(costInput.value);
+      const qty = costMode === 'amount' ? Number(qtyInput.value) : parseFloat(qtyInput.value);
+      const cost = getEffectiveCost();
+      if (!Number.isFinite(qty) || qty <= 0 || cost === null) {
+        throw new Error('请填写有效的份额和成本信息');
+      }
       const cr = currentResult || {};
       const indexVal = indexManual.style.display !== 'none' ? indexManual.value.trim() : (cr.index || '');
 

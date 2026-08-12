@@ -48,9 +48,17 @@ export function modalTemplate() {
         </div>
         <!-- 数量 -->
         <div class="pa-field" id="field-quantity">
-          <label class="pa-field__label" for="input-quantity">持仓数量 <span class="required">*</span></label>
+          <label class="pa-field__label" for="input-quantity"><span id="quantity-label-text">持仓数量</span> <span class="required">*</span></label>
           <input class="pa-input" id="input-quantity" type="text" inputmode="decimal" placeholder="0" autocomplete="off" aria-describedby="error-qty">
           <div class="pa-field__error" id="error-qty"></div>
+        </div>
+        <!-- 基金成本填写方式 -->
+        <div class="pa-field" id="field-cost-mode" style="display:none">
+          <span class="pa-field__label" id="cost-mode-label">成本填写方式</span>
+          <div class="pa-entry-mode" id="cost-mode" role="radiogroup" aria-labelledby="cost-mode-label">
+            <button class="pa-entry-mode__option pa-entry-mode__option--active" type="button" data-cost-mode="unit" role="radio" aria-checked="true">成本价</button>
+            <button class="pa-entry-mode__option" type="button" data-cost-mode="amount" role="radio" aria-checked="false">投入金额</button>
+          </div>
         </div>
         <!-- 成本价 -->
         <div class="pa-field" id="field-cost">
@@ -58,6 +66,13 @@ export function modalTemplate() {
           <input class="pa-input" id="input-cost" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-describedby="error-cost">
           <div class="pa-field__hint" id="cost-hint"></div>
           <div class="pa-field__error" id="error-cost"></div>
+        </div>
+        <!-- 投入金额（仅基金） -->
+        <div class="pa-field" id="field-amount" style="display:none">
+          <label class="pa-field__label" for="input-amount"><span id="amount-label-text">投入金额（CNY）</span> <span class="required">*</span></label>
+          <input class="pa-input" id="input-amount" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-describedby="amount-hint error-amount">
+          <div class="pa-field__hint pa-field__hint--info" id="amount-hint">填写实际支出总额（含手续费）</div>
+          <div class="pa-field__error" id="error-amount"></div>
         </div>
         <!-- 账户 -->
         <div class="pa-field" id="field-account">
