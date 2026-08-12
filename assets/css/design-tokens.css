@@ -1,0 +1,133 @@
+/* ===== Design Tokens: Premium Investment Portfolio ===== */
+
+:root {
+  /* ── 背景 ── */
+  --bg: #050817;
+  --bg-soft: #0A0F28;
+  --surface: #0D1330;
+  --surface-2: #111840;
+  --bg-glow: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(37, 99, 235, .08) 0%, transparent 60%);
+
+  /* ── 文字 ── */
+  --fg: #E8ECF4;
+  --fg-2: #8892B0;
+  --muted: #5A6480;
+  --meta: #3D4660;
+
+  /* ── 边框 ── */
+  --border: rgba(255, 255, 255, .06);
+  --border-soft: rgba(255, 255, 255, .04);
+
+  /* ── 品牌色 ── */
+  --accent: #3B82F6;
+  --accent-hover: #60A5FA;
+  --accent-active: #2563EB;
+  --accent-on: #FFFFFF;
+  --accent-glow: 0 0 20px rgba(59, 130, 246, .25);
+  --focus-ring: 0 0 0 3px rgba(59, 130, 246, .3);
+
+  /* ── 语义色（A股红涨绿跌）── */
+  --up: #EF4444;
+  --up-strong: #F87171;
+  --up-bg: rgba(239, 68, 68, .12);
+  --down: #22C55E;
+  --down-strong: #4ADE80;
+  --down-bg: rgba(34, 197, 94, .12);
+  --flat: #5A6480;
+  --warn: #F59E0B;
+  --danger: #EF4444;
+
+  /* ── 资产分类色（高饱和）── */
+  --chart-stock: #3B82F6;
+  --chart-etf: #6366F1;
+  --chart-fund: #8B5CF6;
+  --chart-bond: #F59E0B;
+  --chart-cash: #5A6480;
+  --chart-commodity: #F97316;
+  --chart-other: #14B8A6;
+
+  /* ── 持仓大类标签色 ── */
+  --tag-us: #3B82F6;
+  --tag-hk: #EF4444;
+  --tag-etf: #6366F1;
+  --tag-of: #22C55E;
+  --tag-default: #5A6480;
+
+  /* ── 排版 ── */
+  --font-display: "Inter", "Noto Sans SC", -apple-system, "PingFang SC", sans-serif;
+  --font-body: "Inter", "Noto Sans SC", -apple-system, "PingFang SC", sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 24px;
+  --text-3xl: 32px;
+  --text-4xl: 48px;
+  --text-5xl: 64px;
+
+  /* ── 间距 ── */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px;
+  --space-4: 16px; --space-5: 20px; --space-6: 24px;
+  --space-8: 32px; --space-10: 40px; --space-12: 48px;
+  --space-16: 64px; --space-20: 80px;
+
+  /* ── 圆角 ── */
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px;
+  --radius-xl: 24px; --radius-2xl: 32px;
+
+  /* ── 阴影 / Glow ── */
+  --elev-flat: none;
+  --elev-raised: 0 4px 24px rgba(0, 0, 0, .3);
+  --elev-modal: 0 20px 60px rgba(0, 0, 0, .5);
+  --glow-blue: 0 0 30px rgba(59, 130, 246, .15);
+  --glow-card: 0 0 0 1px rgba(255, 255, 255, .06), 0 2px 8px rgba(0, 0, 0, .2);
+
+  /* ── z-index ── */
+  --z-base: 0; --z-dropdown: 1000; --z-sticky: 1100;
+  --z-modal: 1200; --z-toast: 1300;
+
+  /* ── 布局 ── */
+  --header-h: 64px;
+  --container-max: 1200px;
+}
+
+/* ── 原子类 ── */
+.num { font-variant-numeric: tabular-nums; }
+.up { color: var(--up-strong); }
+.down { color: var(--down-strong); }
+.flat { color: var(--flat); }
+.up-badge { color: var(--up); background: var(--up-bg); border-radius: var(--radius-sm); padding: 1px 6px; font-size: var(--text-xs); }
+.down-badge { color: var(--down); background: var(--down-bg); border-radius: var(--radius-sm); padding: 1px 6px; font-size: var(--text-xs); }
+
+/* ── 全局 reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { background: var(--bg); }
+body {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--fg);
+  background: var(--bg);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* ── bg glow ── */
+body::before {
+  content: '';
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--bg-glow);
+  pointer-events: none; z-index: 0;
+}
+
+/* ── reduced-motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+  }
+}

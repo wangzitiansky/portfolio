@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>投资组合环形图</title>
+<style>
+  :root {
+    --bg: #0A0A12;
+    --card: #0D0D1A;
+    --gold: #D4AF37;
+    --fg: #E8ECF4;
+    --muted: #888;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh;
+    font-family: 'PingFang SC','Microsoft YaHei','Inter',sans-serif;
+  }
+
+  /* ── 卡片容器 ── */
+  .donut-card {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 40px 36px 32px;
+    box-shadow:
+      0 20px 60px rgba(0, 0, 0, 0.7),
+      0 0 0 1px rgba(212, 175, 55, 0.06);
+    width: 480px;
+  }
+
+  /* ── 图表区 ── */
+  .donut-chart-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .donut-chart-wrap svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ── 扇区 hover 微动效 ── */
+  .donut-sector {
+    cursor: default;
+    transition: opacity 0.3s;
+  }
+  .donut-chart-wrap:hover .donut-sector {
+    opacity: 0.75;
+  }
+  .donut-chart-wrap .donut-sector:hover {
+    opacity: 1 !important;
+    filter: brightness(1.25);
+  }
+
+  /* ── 中央圆形信息卡 ── */
+  .donut-center {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    /* 35% of ring diameter (ring outer = 2×160 = 320, 35%×320 = 112px → 28% of 400px viewBox) */
+    width: 28%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: rgba(13, 13, 26, 0.92);
+    border: 2px solid var(--gold);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    z-index: 5;
+    backdrop-filter: blur(8px);
+    box-shadow:
+      0 0 30px rgba(212, 175, 55, 0.08),
+      inset 0 0 20px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+  }
+  .donut-center__sub {
+    font-size: 7px;
+    color: var(--muted);
+    letter-spacing: 1.5px;
+    margin-bottom: 6px;
+    font-family: 'Inter', sans-serif;
+  }
+  .donut-center__title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+  }
+  .donut-center__line {
+    width: 28px;
+    height: 1.5px;
+    background: var(--gold);
+    margin: 5px 0 6px;
+  }
+  .donut-center__total {
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .donut-center__total strong {
+    color: var(--gold);
+    font-size: 18px;
+    font-weight: 800;
+  }
+  .donut-center__total span {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--gold);
+  }
+
+  /* ── 底部图例 ── */
+  .donut-legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px 26px;
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .donut-legend__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--fg);
+    font-family: 'Inter', 'PingFang SC', sans-serif;
+  }
+  .donut-legend__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .donut-legend__idx {
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .donut-legend__code {
+    color: var(--muted);
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    font-size: 11px;
+  }
+  .donut-legend__pct {
+    color: var(--gold);
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<div class="donut-card" id="donut-card">
+  <div class="donut-chart-wrap" id="donut-wrap">
+    <svg viewBox="0 0 400 400" id="donut-svg">
+      <defs>
+        <!-- 渐变（由 JS 动态填充） -->
+        <g id="gradients"></g>
+
+        <!-- 文字阴影滤镜 -->
+        <filter id="textShadow" x="-50%" y="-50%" width="200%" height="200%">
+          <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#000" flood-opacity="0.6"/>
+        </filter>
+
+        <!-- 扇区发光滤镜 -->
+        <filter id="sectorGlow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+          <feMerge>
+            <feMergeNode in="blur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+
+      <!-- 底环（暗色衬底，让 1px 分隔间隙显为黑色） -->
+      <circle cx="200" cy="200" r="130" fill="none"
+        stroke="#0E0E1A" stroke-width="60" />
+
+      <!-- 内环亮边（dual-ring 效果：内圈高亮细线） -->
+      <circle cx="200" cy="200" r="94" fill="none"
+        stroke="rgba(255,255,255,0.04)" stroke-width="1.5" />
+
+      <!-- 外环亮边 -->
+      <circle cx="200" cy="200" r="166" fill="none"
+        stroke="rgba(255,255,255,0.06)" stroke-width="1.5" />
+
+      <!-- 扇区容器 (rotate -90° = 从顶部开始) -->
+      <g id="sectors" transform="rotate(-90 200 200)"></g>
+
+      <!-- 扇区内标签 -->
+      <g id="labels" filter="url(#textShadow)"></g>
+    </svg>
+
+    <!-- 中央信息卡 -->
+    <div class="donut-center">
+      <div class="donut-center__sub">INVESTMENT PORTFOLIO</div>
+      <div class="donut-center__title">投资组合</div>
+      <div class="donut-center__line"></div>
+      <div class="donut-center__total">总计 <strong>100</strong><span>%</span></div>
+    </div>
+  </div>
+
+  <!-- 图例 -->
+  <div class="donut-legend" id="legend"></div>
+</div>
+
+<script>
+/**
+ * 投资组合环形图 — 纯 SVG + CSS 实现
+ *
+ * @param {string}  wrapId    图表容器 ID
+ * @param {Array}   data      [{ name, code, pct, color: [start, end] }, ...]
+ * @param {object}  opts      { centerTitle, centerSub }
+ */
+function renderDonutChart(wrapId, data, opts = {}) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+
+  const svg       = wrap.querySelector('svg');
+  const sectorsG  = svg.querySelector('#sectors');
+  const labelsG   = svg.querySelector('#labels');
+  const gradDefs  = svg.querySelector('#gradients');
+  const legendEl  = document.getElementById('legend');
+
+  // 清空
+  sectorsG.innerHTML = '';
+  labelsG.innerHTML  = '';
+  gradDefs.innerHTML = '';
+
+  // ── 常量 ──
+  const CX = 200, CY = 200;
+  const R  = 130;         // 环中心半径
+  const SW = 72;          // 环宽 (stroke-width)
+  const C  = 2 * Math.PI * R;  // 周长 ≈ 816.81
+  const GAP = 1.0;        // 扇区间 1px 黑缝
+
+  // ── 线性渐变定义 ──
+  data.forEach((d, i) => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+    g.id = `donut-grad-${i}`;
+    g.setAttribute('x1', '0%'); g.setAttribute('y1', '0%');
+    g.setAttribute('x2', '100%'); g.setAttribute('y2', '100%');
+    g.innerHTML =
+      `<stop offset="0%"   stop-color="${d.color[0]}"/>` +
+      `<stop offset="100%" stop-color="${d.color[1]}"/>`;
+    gradDefs.appendChild(g);
+  });
+
+  // ── 绘制扇区 + 标签 ──
+  let cumulative = 0;
+
+  data.forEach((d, i) => {
+    const startPct   = cumulative;
+    const endPct     = cumulative + d.pct;
+    const centerPct  = startPct + d.pct / 2;
+
+    // stroke-dasharray: [dashLen, circumference]
+    const dashLen = Math.max(0.5, (d.pct / 100) * C - GAP);
+    const offset  = -(startPct / 100) * C;
+
+    // ---- 扇区 circle ----
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', CX);
+    circle.setAttribute('cy', CY);
+    circle.setAttribute('r', R);
+    circle.setAttribute('fill', 'none');
+    circle.setAttribute('stroke', `url(#donut-grad-${i})`);
+    circle.setAttribute('stroke-width', SW);
+    circle.setAttribute('stroke-dasharray', `${dashLen.toFixed(2)} ${C.toFixed(2)}`);
+    circle.setAttribute('stroke-dashoffset', offset.toFixed(2));
+    circle.setAttribute('stroke-linecap', 'butt');
+    circle.classList.add('donut-sector');
+    sectorsG.appendChild(circle);
+
+    // ---- 内环高亮（dual-ring 效果：半透明亮色覆盖层） ----
+    const inner = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    inner.setAttribute('cx', CX);
+    inner.setAttribute('cy', CY);
+    inner.setAttribute('r', R);
+    inner.setAttribute('fill', 'none');
+    inner.setAttribute('stroke', 'rgba(255,255,255,0.08)');
+    inner.setAttribute('stroke-width', SW * 0.66);
+    inner.setAttribute('stroke-dasharray', `${dashLen.toFixed(2)} ${C.toFixed(2)}`);
+    inner.setAttribute('stroke-dashoffset', offset.toFixed(2));
+    inner.setAttribute('stroke-linecap', 'butt');
+    inner.classList.add('donut-sector');
+    inner.style.pointerEvents = 'none';
+    sectorsG.appendChild(inner);
+
+    // ---- 标签定位（扇区中心角 → 坐标） ----
+    // 角度从上=0° 顺时针递增
+    const angleDeg = centerPct / 100 * 360;
+    const angleRad = (angleDeg - 90) * Math.PI / 180;
+    const lx = CX + R * Math.cos(angleRad);
+    const ly = CY + R * Math.sin(angleRad);
+
+    // 极小扇区不显示名称/代码，只显示百分比
+    const isSmall = d.pct < 6;
+
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', lx);
+    text.setAttribute('y', ly);
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('dominant-baseline', 'central');
+    text.setAttribute('fill', '#fff');
+
+    if (isSmall) {
+      // 小扇区：仅显示百分比
+      text.innerHTML =
+        `<tspan x="${lx}" dy="0" font-weight="800" font-size="15" fill="#fff">${d.pct}%</tspan>`;
+    } else {
+      text.innerHTML =
+        `<tspan x="${lx}" dy="-12" font-weight="700" font-size="13">${d.name}</tspan>` +
+        `<tspan x="${lx}" dy="14" fill="#ccc" font-size="9">${d.code}</tspan>` +
+        `<tspan x="${lx}" dy="18" font-weight="800" font-size="20" fill="#fff">${d.pct}%</tspan>`;
+    }
+    labelsG.appendChild(text);
+
+    cumulative = endPct;
+  });
+
+  // ── 底部图例 ──
+  legendEl.innerHTML = data.map((d, i) =>
+    `<div class="donut-legend__item">
+      <span class="donut-legend__dot" style="background:${d.color[0]}"></span>
+      <span class="donut-legend__idx">${i + 1}.</span>
+      <span>${d.name}</span>
+      <span class="donut-legend__code">${d.code}</span>
+      <span class="donut-legend__pct">${d.pct}%</span>
+    </div>`
+  ).join('');
+}
+
+// ═════════════════════════════════
+// 使用示例 & 效果预览
+// ═════════════════════════════════
+const SAMPLE = [
+  { name: '标普500ETF南方',  code: 'SH513650',  pct: 39.3, color: ['#0F2A5B', '#1E3A5F'] },
+  { name: '纳指100ETF',      code: 'SH513100',  pct: 30.4, color: ['#D92F2F', '#A52A2A'] },
+  { name: '标普500联接E',    code: 'OF013425',  pct: 26.4, color: ['#8A2BE2', '#4B0082'] },
+  { name: '其他资产',        code: 'OTHER',     pct:  3.9, color: ['#FF6B00', '#E74C3C'] },
+];
+
+renderDonutChart('donut-wrap', SAMPLE, {
+  centerTitle: '投资组合',
+  centerSub: 'INVESTMENT PORTFOLIO',
+});
+</script>
+</body>
+</html>

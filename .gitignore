@@ -1,0 +1,22 @@
+# Binaries
+portfolio-server
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+server.log
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Claude
+.claude/
+
+# Temp
+*.zip
+nav-recorder/
