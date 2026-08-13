@@ -1,56 +1,67 @@
 # Portfolio
 
-本项目是一个本地运行的投资组合看板，后端使用 Go + SQLite，前端使用原生 HTML/CSS/ES Modules。
+一个本地运行的个人投资组合看板：用 Go + SQLite 保存持仓，用原生 HTML/CSS/JavaScript 展示资产、指数分布、收益和行情。
 
-## 最快启动（Windows）
+## 效果预览
 
-在 PowerShell 中进入仓库目录：
+![Portfolio 看板预览](assets/images/portfolio-preview.png)
+
+## 功能
+
+- 股票、基金、ETF、现金等资产录入与编辑
+- 基金按投入金额自动换算成本价
+- 相同市场和代码的基金新增时自动合并并计算加权成本
+- 持仓市值、收益、指数暴露和总资产走势
+- 支持 JSON 导入/导出
+- 支持底层指数饼图导出 PNG
+- 通过腾讯、天天基金及东方财富接口获取行情数据
+
+## 快速开始（Windows）
+
+需要 Go 1.25+。在 PowerShell 中执行：
 
 ```powershell
 cd D:\learn\portfolio
-Set-ExecutionPolicy -Scope Process Bypass
 .\run.ps1 -OpenBrowser
 ```
 
-然后访问：<http://127.0.0.1:8889/assets/index.html>
+然后打开 <http://127.0.0.1:8889/assets/index.html>。
 
-脚本会自动：
-
-- 检查 Go 是否已安装；
-- 执行 `go test ./...`；
-- 停止同端口上由本项目启动的旧进程；
-- 启动 Go 服务；
-- 使用 `-OpenBrowser` 时打开浏览器。
-
-如果只想快速启动、跳过测试：
+跳过测试并直接启动：
 
 ```powershell
 .\run.ps1 -OpenBrowser -SkipTests
 ```
 
-如果 8889 端口被其他程序占用，可以换端口：
-
-```powershell
-.\run.ps1 -Port 8890 -OpenBrowser
-```
-
-服务会通过 `PORTFOLIO_PORT` 环境变量读取端口，范围为 1024–65535。
-
-## 手动启动
+也可以手动运行：
 
 ```powershell
 go test ./...
 go run .
 ```
 
-停止服务：在运行服务的 PowerShell 窗口按 `Ctrl+C`。
-
-运行数据位于 `assets/portfolio.db`，日志位于 `server.log`。服务只监听本机回环地址。
-
-## 可选：每日资产记录脚本
+端口可通过参数或环境变量修改：
 
 ```powershell
-python .\record-nav.py .\assets\data.json
+.\run.ps1 -Port 8890
+$env:PORTFOLIO_PORT = '8890'; go run .
 ```
 
-该脚本需要一个与持仓格式兼容的 JSON 文件，并会请求外部行情、汇率和基金净值接口。
+## 数据与接口
+
+- SQLite 数据库：`assets/portfolio.db`
+- `GET/POST /api/data`：持仓数据
+- `GET/POST /api/nav`：资产净值历史
+- `GET /api/snapshot`：组合快照与实时行情
+- `GET /api/quote/detail`：行情详情数据
+
+服务默认只监听 `127.0.0.1`，不会直接暴露到公网。
+
+## 开发检查
+
+```powershell
+go test ./...
+node --check assets/js/main.js
+node --check assets/js/donut-chart.js
+git diff --check
+```
