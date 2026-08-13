@@ -1,5 +1,7 @@
 # Binaries
 portfolio-server
+portfolio-server.exe
+portfolio-server.exe~
 
 # Database files are runtime data and should stay out of Git.
 *.db
