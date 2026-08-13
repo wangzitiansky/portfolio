@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,12 +10,14 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -55,6 +58,12 @@ func main() {
 		log.Fatalf("DB init failed: %v", err)
 	}
 	defer closeDB()
+	workerStop := make(chan struct{})
+	workerDone := make(chan struct{})
+	go func() {
+		defer close(workerDone)
+		startNavWorker(workerStop)
+	}()
 
 	mux := http.NewServeMux()
 
@@ -91,9 +100,31 @@ func main() {
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
-	if err := server.ListenAndServe(); err != nil {
-		log.Fatalf("Server failed: %v", err)
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- server.ListenAndServe()
+	}()
+
+	stopSignal := make(chan os.Signal, 1)
+	signal.Notify(stopSignal, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(stopSignal)
+
+	select {
+	case sig := <-stopSignal:
+		log.Printf("Shutdown requested: %s", sig)
+	case err := <-serverErr:
+		if err != nil && err != http.ErrServerClosed {
+			log.Printf("Server failed: %v", err)
+		}
 	}
+
+	close(workerStop)
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelShutdown()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Server shutdown failed: %v", err)
+	}
+	<-workerDone
 }
 
 // ── Host protection ──
@@ -270,12 +301,30 @@ func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var errors []string
-	// refresh_fx=1 时强制刷新汇率，否则使用缓存
-	forceFx := r.URL.Query().Get("refresh_fx") == "1"
-	start := time.Now()
+	result, errors := buildSnapshot(holdings, r.URL.Query().Get("refresh_fx") == "1")
+	if result == nil {
+		writeJSON(w, 500, map[string]interface{}{"ok": false, "error": "快照计算失败", "errors": errors})
+		return
+	}
+	writeJSON(w, 200, map[string]interface{}{
+		"ts": time.Now().UnixMilli(), "kpi": result.KPI, "rows": result.Rows,
+		"charts": map[string]interface{}{"byCategory": result.ChartCat, "byIndex": result.ChartIdx},
+		"fx":     result.FX, "errors": errors,
+	})
+}
 
-	// 1. 按需并行拉取：行情 + 汇率 + 净值
+type snapshotResult struct {
+	KPI      KPI
+	Rows     []Holding
+	ChartCat []ChartItem
+	ChartIdx []ChartItem
+	FX       *FxResult
+}
+
+// buildSnapshot 是页面 API 和后台净值任务共用的行情计算入口。
+func buildSnapshot(holdings []Holding, forceFx bool) (*snapshotResult, []string) {
+	start := time.Now()
+	var errors []string
 	var nonManual []struct{ Market, Code string }
 	var ofCodes []string
 	needFx := false
@@ -341,14 +390,24 @@ func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	if quotes == nil {
 		quotes = map[string]Quote{}
 	}
-	if len(nonManual) > 0 && len(quotes) == 0 {
-		errors = append(errors, "行情: 全部拉取失败")
+	if len(nonManual) > 0 {
+		for _, item := range nonManual {
+			q, ok := quotes[item.Market+item.Code]
+			if !ok || !finitePositive(q.Price) {
+				errors = append(errors, fmt.Sprintf("行情: %s/%s 无有效报价", item.Market, item.Code))
+			}
+		}
 	}
 	if navMap == nil {
 		navMap = map[string]*NavResult{}
 	}
-	if len(ofCodes) > 0 && len(navMap) == 0 {
-		errors = append(errors, "净值: 全部拉取失败")
+	if len(ofCodes) > 0 {
+		for _, code := range ofCodes {
+			nav := navMap[code]
+			if nav == nil || !finitePositive(nav.NavPrice) {
+				errors = append(errors, fmt.Sprintf("净值: %s 无有效净值", code))
+			}
+		}
 	}
 
 	// 2. Enrich
@@ -369,18 +428,7 @@ func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	chartIdx := aggregateByIndex(rows)
 
 	log.Printf("[snapshot] completed in %v", time.Since(start).Round(time.Millisecond))
-
-	writeJSON(w, 200, map[string]interface{}{
-		"ts":   time.Now().UnixMilli(),
-		"kpi":  kpi,
-		"rows": rows,
-		"charts": map[string]interface{}{
-			"byCategory": chartCat,
-			"byIndex":    chartIdx,
-		},
-		"fx":     fx,
-		"errors": errors,
-	})
+	return &snapshotResult{KPI: kpi, Rows: rows, ChartCat: chartCat, ChartIdx: chartIdx, FX: fx}, errors
 }
 
 // ── GET /api/quote?market=us&code=BRK.B ──

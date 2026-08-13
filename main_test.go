@@ -1,10 +1,12 @@
 package main
 
 import (
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -60,6 +62,59 @@ func TestParseUSTsUsesNewYorkTime(t *testing.T) {
 	want := time.Date(2026, 8, 12, 10, 59, 20, 0, time.FixedZone("EDT", -4*3600)).UnixMilli()
 	if got != want {
 		t.Fatalf("expected New York timestamp %d, got %d", want, got)
+	}
+}
+
+func TestNavWorkerFiniteValueGuards(t *testing.T) {
+	if !finitePositive(1.25) || finitePositive(0) || finitePositive(-1) {
+		t.Fatal("finitePositive guard failed")
+	}
+	if !finiteNonNegative(0) || !finiteNonNegative(2.5) || finiteNonNegative(-0.1) {
+		t.Fatal("finiteNonNegative guard failed")
+	}
+	if finiteNumber(math.NaN()) || finiteNumber(math.Inf(1)) || !finiteNumber(-2) {
+		t.Fatal("finiteNumber guard failed")
+	}
+}
+
+func TestNavWorkerSkipsOverlappingRunsAndWaitsOnStop(t *testing.T) {
+	stop := make(chan struct{})
+	started := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan struct{})
+	var calls atomic.Int32
+
+	go func() {
+		defer close(done)
+		runNavWorker(stop, 10*time.Millisecond, func() {
+			if calls.Add(1) == 1 {
+				close(started)
+			}
+			<-release
+		})
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("worker did not run immediately")
+	}
+	time.Sleep(35 * time.Millisecond)
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("overlapping ticks started %d runs, want 1", got)
+	}
+
+	close(stop)
+	select {
+	case <-done:
+		t.Fatal("worker stopped before its active run completed")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("worker did not stop after active run completed")
 	}
 }
 

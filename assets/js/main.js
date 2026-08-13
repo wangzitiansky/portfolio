@@ -122,11 +122,15 @@ async function refresh(refreshFx = false) {
     }
 
     // 3. 记录今日净值
+		const snapshotComplete = !serverErrors || serverErrors.length === 0;
 		const previousTotal = kpi.total - kpi.todayPnl;
 		const pnlPct = previousTotal > 0 ? (kpi.todayPnl / previousTotal) * 100 : 0;
 		let recordFailed = false;
-		const recordP = recordToday(kpi.total, kpi.todayPnl, pnlPct, kpi.count)
-		  .catch(e => { recordFailed = true; throw e; });
+		// 部分行情失败时只展示当前快照，不允许用兜底价格覆盖最近一次完整记录。
+		const recordP = snapshotComplete
+		  ? recordToday(kpi.total, kpi.todayPnl, pnlPct, kpi.count)
+		      .catch(e => { recordFailed = true; throw e; })
+		  : Promise.resolve(false);
 
     // 4. 渲染双图 & 净值走势
     try {
