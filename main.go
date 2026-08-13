@@ -66,6 +66,7 @@ func main() {
 	mux.HandleFunc("/api/nav", handleNav)
 	mux.HandleFunc("/api/snapshot", handleSnapshot)
 	mux.HandleFunc("/api/quote", handleQuote)
+	mux.HandleFunc("/api/quote/detail", handleQuoteDetail)
 	mux.HandleFunc("/api/fund/suggest", handleFundSuggest)
 	mux.HandleFunc("/api/fund/list", handleFundList)
 
@@ -440,6 +441,10 @@ func handleStatic(w http.ResponseWriter, r *http.Request) {
 	absPath := filepath.Join(baseDir, "assets", filepath.FromSlash(rel))
 
 	if info, err := os.Stat(absPath); err == nil && !info.IsDir() {
+		// 本地应用频繁迭代前端资源；始终重新校验，避免浏览器继续执行旧模块。
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
 		ct := mime.TypeByExtension(filepath.Ext(absPath))
 		if ct != "" {
 			w.Header().Set("Content-Type", ct)

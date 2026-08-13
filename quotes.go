@@ -212,7 +212,7 @@ func parseUS(market, code string, p []string) *Quote {
 	return &Quote{
 		Code: code, Market: market, Name: p[1], Price: price,
 		Change: parseNum(p[31]), ChangePct: parsePct(p[32], false),
-		Currency: currency, TS: parseDateTs(p[30]),
+		Currency: currency, TS: parseUSTs(p[30]),
 	}
 }
 
@@ -266,8 +266,14 @@ func parseTs(s string) int64 {
 	return parseMarketTs(s, time.FixedZone("CST", 8*3600))
 }
 
-func parseDateTs(s string) int64 {
-	return parseMarketTs(s, time.Local)
+func parseUSTs(s string) int64 {
+	// 腾讯美股报价时间采用纽约本地时间；不能按运行机器所在时区解析，
+	// 否则在中国部署时会将实时行情错误标记为过期约 8 小时。
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		loc = time.FixedZone("EST", -5*3600)
+	}
+	return parseMarketTs(s, loc)
 }
 
 func parseMarketTs(s string, loc *time.Location) int64 {

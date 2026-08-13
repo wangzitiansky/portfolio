@@ -55,6 +55,39 @@ func TestParseMarketTsDoesNotMakeInvalidDataFresh(t *testing.T) {
 	}
 }
 
+func TestParseUSTsUsesNewYorkTime(t *testing.T) {
+	got := parseUSTs("2026-08-12 10:59:20")
+	want := time.Date(2026, 8, 12, 10, 59, 20, 0, time.FixedZone("EDT", -4*3600)).UnixMilli()
+	if got != want {
+		t.Fatalf("expected New York timestamp %d, got %d", want, got)
+	}
+}
+
+func TestIsMarketOpenAtUsesLocalTradingWindows(t *testing.T) {
+	loc := time.FixedZone("CST", 8*3600)
+	if !isMarketOpenAt("sh", time.Date(2026, 8, 12, 10, 0, 0, 0, loc)) {
+		t.Fatal("A-share morning session should be open")
+	}
+	if isMarketOpenAt("sh", time.Date(2026, 8, 12, 12, 0, 0, 0, loc)) {
+		t.Fatal("A-share lunch break should be closed")
+	}
+	if isMarketOpenAt("hk", time.Date(2026, 8, 15, 10, 0, 0, 0, loc)) {
+		t.Fatal("Hong Kong market should be closed on Saturday")
+	}
+	if isMarketOpenAt("manual", time.Date(2026, 8, 12, 10, 0, 0, 0, loc)) {
+		t.Fatal("manual assets are never tradeable")
+	}
+}
+
+func TestQuoteDetailValidationAndRanges(t *testing.T) {
+	if !validQuoteMarketCode("us", "BRK.B") || validQuoteMarketCode("us", "bad code") {
+		t.Fatal("quote market/code validation failed")
+	}
+	if !validQuoteRange("YTD") || validQuoteRange("2Y") {
+		t.Fatal("quote range validation failed")
+	}
+}
+
 func TestAggregateByCategory(t *testing.T) {
 	rows := []Holding{
 		{Market: "us", Type: "stock", MarketValueCNY: 100},

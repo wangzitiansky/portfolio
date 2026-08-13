@@ -109,6 +109,10 @@ export function renderDonut(el, data, centerId, legendId, options = {}) {
     : displayedTotal;
 
   const items = safeData.map((item, index) => normalizeItem(item, index, total, mode));
+  if (mode === 'index') {
+    const exportButton = document.getElementById('btn-export-index');
+    if (exportButton) exportButton.disabled = items.length === 0;
+  }
   el.classList.toggle('pa-chart--image-wheel', items.some((item) => Boolean(item.backgroundImage)));
   const defaultItem = items[0] || null;
   updateCenter(centerId, defaultItem, total, { showcase: isShowcase });

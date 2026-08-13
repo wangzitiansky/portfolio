@@ -84,8 +84,8 @@ export function renderNavTrend(el, data) {
     },
     // 隐藏网格线
     grid: {
-      vertLines: { visible: false },
-      horzLines: { visible: false },
+      vertLines: { color: 'rgba(255,255,255,.045)', visible: true },
+      horzLines: { color: 'rgba(255,255,255,.065)', visible: true },
     },
     timeScale: {
       borderColor: 'rgba(217,185,109,0.08)',
@@ -114,7 +114,9 @@ export function renderNavTrend(el, data) {
     },
   });
 
-  _series.setData(aggregate(data, '1D'));
+  const initial = aggregate(data, '1D');
+  _series.setData(initial);
+  applyTrendTone(initial);
 
   // ---- Floating Tooltip（官方 tooltip 示例）---------------------------------
   const tooltip = document.createElement('div');
@@ -124,8 +126,8 @@ export function renderNavTrend(el, data) {
     'padding:6px 10px;border-radius:6px;' +
     'font-size:12px;font-family:"Inter","Noto Sans SC",-apple-system,sans-serif;' +
     'line-height:18px;white-space:nowrap;' +
-    'background:rgba(7,11,27,0.94);' +
-    'border:1px solid rgba(217,185,109,0.18);' +
+    'background:rgba(20,24,33,0.96);' +
+    'border:1px solid rgba(217,185,109,0.22);' +
     'box-shadow:0 4px 16px rgba(0,0,0,0.4);';
   container.appendChild(tooltip);
 
@@ -194,7 +196,9 @@ function setChartInterval(interval) {
   _legendName = interval === '1D' ? SYMBOL_NAME : `${SYMBOL_NAME} · ${interval}`;
 
   // 换数据 + 换线色 + 时间标签格式
-  _series.setData(aggregate(_dataRef, key));
+  const points = aggregate(_dataRef, key);
+  _series.setData(points);
+  applyTrendTone(points);
   _series.applyOptions({
     lineColor: color,
     topColor: hexA(color, 0.20),
@@ -209,7 +213,23 @@ function setChartInterval(interval) {
       timeVisible: false,
     },
   });
+  applyTrendTone(points);
   _chart.timeScale().fitContent();
+}
+
+function applyTrendTone(points) {
+  if (!_series || !points.length) return;
+  const first = Number(points[0].value);
+  const last = Number(points[points.length - 1].value);
+  const color = Number.isFinite(first) && Number.isFinite(last)
+    ? (last > first ? '#35D49A' : last < first ? '#F04444' : '#D9B96D')
+    : '#D9B96D';
+  _series.applyOptions({
+    lineColor: color,
+    topColor: hexA(color, 0.24),
+    bottomColor: hexA(color, 0.0),
+  });
+  _chart?.applyOptions({ crosshair: { vertLine: { labelBackgroundColor: color } } });
 }
 
 /** 日频数据按粒度聚合（官方 demo：1D/1W/1M/1Y 各一套数据集） */

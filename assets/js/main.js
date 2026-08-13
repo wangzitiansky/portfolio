@@ -9,6 +9,7 @@ import {
   renderWheel, clearCharts, setRefreshCountdown
 } from './ui.js';
 import { buildPortfolioSeries, renderDonut } from './donut-chart.js';
+import { exportIndexCardPNG } from './index-chart-export.js';
 
 /* ── 初始化 ── */
 
@@ -137,6 +138,8 @@ async function refresh(refreshFx = false) {
       const portfolioCount = document.getElementById('portfolio-count');
       if (portfolioCount) portfolioCount.textContent = String(byHolding.length);
       const byIdx = charts.byIndex || [];
+      const exportIndexBtn = document.getElementById('btn-export-index');
+      if (exportIndexBtn) exportIndexBtn.disabled = true;
       if (portfolioEl && portfolioEl.clientWidth > 0) {
         renderDonut(portfolioEl, byHolding, 'portfolio-center', 'legend-portfolio', {
           variant: 'showcase',
@@ -150,6 +153,12 @@ async function refresh(refreshFx = false) {
           mode: 'index',
         });
       }
+      if (exportIndexBtn && indexEl?.querySelector('.pa-donut-sector')) {
+        exportIndexBtn.disabled = false;
+      }
+      requestAnimationFrame(() => {
+        if (exportIndexBtn && indexEl?.querySelector('.pa-donut-sector')) exportIndexBtn.disabled = false;
+      });
     } catch (e) { console.error('[refresh] 组合图表渲染失败', e); errors.push('图表渲染'); }
 
     // 5. 渲染 KPI / 表格（优先渲染，不等待 recordP）
@@ -216,6 +225,25 @@ function bindEvents() {
   if (!btnAdd || !btnRefresh || !btnRecordNav) return;
 
   btnAdd.addEventListener('click', () => openAddModal(async () => { await refresh(); }));
+  const btnExportIndex = document.getElementById('btn-export-index');
+  if (btnExportIndex) {
+    btnExportIndex.addEventListener('click', async () => {
+      const chart = document.getElementById('chart-index');
+      if (!chart?.querySelector('.pa-donut-sector')) { showToast('暂无指数数据', 'error'); return; }
+      btnExportIndex.disabled = true;
+      const previousText = btnExportIndex.textContent;
+      btnExportIndex.textContent = '生成中…';
+      try {
+        await exportIndexCardPNG(document.querySelector('.pa-portfolio-feature--index'));
+        showToast('底层指数图片已导出');
+      } catch (error) {
+        showToast(error?.message || '导出失败', 'error');
+      } finally {
+        btnExportIndex.disabled = false;
+        btnExportIndex.textContent = previousText;
+      }
+    });
+  }
   btnRefresh.addEventListener('click', () => refresh(true));
 
 	btnRecordNav.addEventListener('click', async () => {

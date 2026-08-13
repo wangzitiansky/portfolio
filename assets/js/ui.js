@@ -134,9 +134,12 @@ function buildRow(r) {
     ? fmtNum(r.price, 4) : r.price != null ? fmtNum(r.price, r.price < 1 ? 4 : 2) : '--';
   const cd = r.changePct ? '<span class="' + tc + '">' + fmtPct(r.changePct) + '</span>' : '&nbsp;';
   const isForeign = r.currency === 'USD' || r.currency === 'HKD';
+  const quoteEligible = r.market === 'sh' || r.market === 'sz' || r.market === 'hk' || r.market === 'us';
+  const marketOpen = quoteEligible && isTradeableHolding(r) && r.priceSource === 'quote' && r.stale === false && isMarketOpen(r.market);
+  const status = marketOpen ? '<span class="pa-market-status pa-market-status--open" title="交易中" aria-label="交易中"></span>' : '';
 
   return '<tr data-id="' + escHtml(r.id) + '">' +
-    '<td><div class="pa-td-name">' + escHtml(r.name || r.code) + '</div><div class="pa-td-code">' + escHtml(r.code) + '</div></td>' +
+    '<td><div class="pa-td-name">' + status + escHtml(r.name || r.code) + '</div><div class="pa-td-code">' + escHtml(r.code) + '</div></td>' +
     '<td class="pa-table--type" data-label="类型">' + escHtml(cat) + '</td>' +
     '<td data-label="指数"><span class="pa-table--meta">' + escHtml(r.index || '--') + '</span></td>' +
     '<td class="pa-table--r" data-label="持仓 / 成本"><div>' + fmtNum(r.quantity, r.quantity % 1 ? 2 : 0) + ' 份</div><div class="pa-table--meta">' + sym + fmtNum(r.cost, r.cost % 1 ? 4 : 2) + '</div></td>' +
@@ -282,6 +285,16 @@ export function renderEmptyState() {
 	if (navEl) navEl.replaceChildren();
 	if (navEmpty) navEmpty.style.display = 'block';
 	if (navWrap) navWrap.style.display = 'none';
+}
+
+function isTradeableHolding(r) { return r.type === 'stock' || ((r.market === 'sh' || r.market === 'sz') && ['etf','fund','money'].includes(r.type)); }
+function isMarketOpen(market) {
+  const now = new Date(); const parts = new Intl.DateTimeFormat('en-US', { timeZone: market === 'us' ? 'America/New_York' : 'Asia/Shanghai', weekday:'short', hour:'2-digit', minute:'2-digit', hour12:false }).formatToParts(now);
+  const get = k => parts.find(p => p.type === k)?.value; const day = get('weekday'); if (day === 'Sat' || day === 'Sun') return false;
+  const mins = Number(get('hour')) * 60 + Number(get('minute'));
+  if (market === 'us') return mins >= 570 && mins < 960;
+  if (market === 'hk') return (mins >= 570 && mins < 720) || (mins >= 780 && mins < 960);
+  return (mins >= 570 && mins < 690) || (mins >= 780 && mins < 900);
 }
 
 function escHtml(s) {
