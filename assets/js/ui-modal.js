@@ -57,7 +57,6 @@ export function openAddModal(onSave, editHolding) {
   const amountLabelText = document.getElementById('amount-label-text');
   const amountHint = document.getElementById('amount-hint');
   const mergeNotice = document.getElementById('fund-merge-notice');
-  const accountInput = document.getElementById('input-account');
   const previewEl = document.getElementById('modal-preview');
   const marketSelect = document.getElementById('market-select');
   const saveBtn = document.getElementById('modal-save');
@@ -106,8 +105,6 @@ export function openAddModal(onSave, editHolding) {
     qtyInput.value = editHolding.quantity;
     costInput.value = editHolding.cost;
     setCostMode('unit');
-    // 回填账户
-    accountInput.value = editHolding.account || '';
     // 币种提示
     const hint = document.getElementById('cost-hint');
     if (editHolding.currency === 'USD') hint.textContent = 'USD · 成本价为美元价格';
@@ -280,7 +277,6 @@ export function openAddModal(onSave, editHolding) {
     debouncedPreview();
   });
   indexManual.addEventListener('input', () => validateAndUpdateSave());
-  accountInput.addEventListener('input', () => updateMergeNotice());
 
   costModeControl.addEventListener('click', (e) => {
     const option = e.target.closest('[data-cost-mode]');
@@ -371,10 +367,6 @@ export function openAddModal(onSave, editHolding) {
     }
 
     const existingQuantity = matches.reduce((sum, holding) => sum + Number(holding.quantity || 0), 0);
-    const canonical = matches.reduce((earliest, holding) =>
-      (Number(holding.createdAt) || Number.MAX_SAFE_INTEGER) < (Number(earliest.createdAt) || Number.MAX_SAFE_INTEGER)
-        ? holding : earliest
-    );
     const quantity = costMode === 'amount' ? Number(qtyInput.value) : parseFloat(qtyInput.value);
     const cost = getEffectiveCost();
     const mergeResult = Number.isFinite(quantity) && quantity > 0 && cost !== null
@@ -384,10 +376,6 @@ export function openAddModal(onSave, editHolding) {
     let detail = `发现已有 <strong>${formatDisplayNumber(existingQuantity)}</strong> 份，保存时将自动合并`;
     if (mergeResult) {
       detail = `合并后 <strong>${formatDisplayNumber(mergeResult.holding.quantity)}</strong> 份，平均成本 <strong>${currencySymbol(currentResult.currency)}${formatUnitCost(mergeResult.holding.cost)}</strong>`;
-    }
-    if ((accountInput.value.trim() || '') !== (canonical.account || '')) {
-      const account = canonical.account ? `“${escapeHtml(canonical.account)}”` : '空账户';
-      detail += `；账户将保留为 ${account}`;
     }
     if (matches.length > 1) detail += `；同时整理 ${matches.length} 条历史记录`;
 
@@ -472,7 +460,7 @@ export function openAddModal(onSave, editHolding) {
         quantity: qty,
         cost,
         currency: cr.currency || 'CNY',
-        account: document.getElementById('input-account').value.trim(),
+        account: editHolding ? (editHolding.account || '') : '',
         note: '',
         createdAt: editHolding ? editHolding.createdAt : Date.now(),
         updatedAt: Date.now()

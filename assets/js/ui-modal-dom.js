@@ -76,16 +76,6 @@ export function modalTemplate() {
         </div>
         <!-- 重复基金合并提示 -->
         <div class="pa-merge-notice" id="fund-merge-notice" aria-live="polite" style="display:none"></div>
-        <!-- 账户 -->
-        <div class="pa-field" id="field-account">
-          <label class="pa-field__label" for="input-account">券商/账户</label>
-          <input class="pa-input" id="input-account" type="text" placeholder="如 华泰证券" autocomplete="off" list="account-list">
-          <datalist id="account-list">
-            <option value="华泰证券"><option value="中信证券"><option value="国泰君安"><option value="招商证券">
-            <option value="天天基金"><option value="支付宝"><option value="富途牛牛"><option value="老虎证券">
-            <option value="银行理财"><option value="银行存款">
-          </datalist>
-        </div>
       </div>
       <!-- 预览条 -->
       <div class="pa-preview" id="modal-preview" aria-live="polite" style="display:none; margin-top:16px;"></div>
