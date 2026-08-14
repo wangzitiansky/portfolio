@@ -23,6 +23,16 @@ const HOLDING_COLORS = [
 
 const INDEX_THEMES = [
   {
+    id: 'sp500-equal',
+    match: ['标普500等权重', '标普 500 等权重', '标普500等权', 's&p500equalweight', 's&p 500 equal weight', 'sp500equalweight', 'sp 500 equal weight'],
+    name: '标普500等权重',
+    code: 'S&P 500 Equal Weight',
+    brand: 'S&P EW',
+    image: 'images/portfolio/sp500-nyse.jpg',
+    colors: ['#19A99B', '#9F7A2B'],
+    imageOpacity: 0.50,
+  },
+  {
     id: 'sp500',
     match: ['标普500', '标普 500', 's&p500', 's&p 500', 'sp500', 'sp 500'],
     name: '标普500',
@@ -293,7 +303,7 @@ function normalizeItem(item, index, total, mode) {
   };
 }
 
-function resolveIndexTheme(name, code) {
+export function resolveIndexTheme(name, code) {
   const haystack = `${name} ${code}`.toLowerCase().replace(/[\s_-]+/g, '');
   return INDEX_THEMES.find((theme) => theme.match.some((keyword) => (
     haystack.includes(keyword.toLowerCase().replace(/[\s_-]+/g, ''))

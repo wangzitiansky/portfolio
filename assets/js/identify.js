@@ -2,6 +2,7 @@
 
 import { getFundListCache, suggest, fetchNav } from './fund-suggest.js';
 import { mapIndex } from './index-map.js';
+import { FUND_CODE_INDEX_OVERRIDES } from './index-map-data.js';
 
 /** 股票代码段 → 市场映射 */
 const STOCK_SEGMENTS = {
@@ -164,21 +165,28 @@ async function enrich(market, code, ambiguous, candidates, fundEntryOverride, fo
     }
   }
 
+  // 已知基金代码兜底：代码级映射优先于名称/远程结果，避免错误缓存覆盖明确的指数归类。
+  const codeOverride = !forceStock && (market === 'sh' || market === 'sz' || market === 'of')
+    ? (FUND_CODE_INDEX_OVERRIDES[code] || '')
+    : '';
+  indexName = codeOverride;
+
   // 先尝试用本地信息映射指数
   if (name) {
     const localIndex = mapIndex({ name, othername: '', type });
-    if (localIndex) indexName = localIndex;
+    if (localIndex && !codeOverride) indexName = localIndex;
   }
 
   // 远程搜索补充信息（美股/港股跳过——天天基金只覆盖中国基金）
   // 如果本地已能匹配指数，跳过远程调用
-	if (!forceStock && !indexName && (market === 'sh' || market === 'sz' || market === 'of')) {
+	if (!forceStock && (market === 'sh' || market === 'sz' || market === 'of') && (!name || !indexName)) {
 	const sugg = await suggest(code);
 	suggestion = sugg;
     if (sugg) {
       if (!name) name = sugg.name;
 	  if (sugg.ftype) type = classifyType(sugg.ftype);
-      indexName = mapIndex({ name: name || sugg.name, othername: sugg.othername || '', type });
+      const mappedIndex = mapIndex({ name: name || sugg.name, othername: sugg.othername || '', type });
+      if (mappedIndex && !codeOverride) indexName = mappedIndex;
     } else if (name) {
       indexName = mapIndex({ name, othername: '', type });
     }
@@ -242,8 +250,8 @@ function buildCandidates(code, fundEntry) {
     cand.push({ market: 'of', label: `场外基金（${fundEntry.name}）` });
   }
   const mkt = stockMarket(code);
-  const mktLabel = mkt === 'sh' ? '沪市A股' : '深市A股';
-  cand.push({ market: mkt, label: `A股股票（${mktLabel} ${code}）` });
+  const mktLabel = mkt === 'sh' ? '沪市 A 股' : '深市 A 股';
+  cand.push({ market: mkt, label: `A 股股票（${mktLabel} ${code}）` });
   return cand;
 }
 

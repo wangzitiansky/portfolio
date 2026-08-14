@@ -62,9 +62,9 @@ function renderDetail(card, d) {
   card.innerHTML = `<button class="pa-quote-popup__close" aria-label="关闭">×</button>
     <div class="pa-quote-popup__heading"><div><strong>${escapeHtml(d.code)}</strong><span>${escapeHtml(d.name || '--')}</span></div><small>${escapeHtml(d.exchange || '--')} · ${escapeHtml(d.currency || '--')}</small></div>
     <div class="pa-quote-popup__price ${tone}"><strong>${formatPrice(d.price, d.currency)}</strong><span>${d.changePct == null ? '--' : (down ? '' : '+') + Number(d.changePct).toFixed(2) + '%'}</span></div>
-    <div class="pa-quote-popup__ranges">${[['1D','1日'],['1M','1个月'],['3M','3个月'],['1Y','1年'],['5Y','5年'],['10Y','10年'],['YTD','年初至今']].map(([v,l]) => `<button data-range="${v}" class="${d.range===v?'is-active':''}">${l}</button>`).join('')}</div>
+    <div class="pa-quote-popup__ranges">${[['1D','1 日'],['1M','1 个月'],['3M','3 个月'],['1Y','1 年'],['5Y','5 年'],['10Y','10 年'],['YTD','年初至今']].map(([v,l]) => `<button data-range="${v}" class="${d.range===v?'is-active':''}">${l}</button>`).join('')}</div>
     <div class="pa-quote-popup__chart" aria-label="行情走势"></div>
-    <div class="pa-quote-popup__metrics">${metric('开盘价',d.open,d.currency)}${metric('最高价',d.high,d.currency)}${metric('最低价',d.low,d.currency)}${metric('成交量',d.volume,'')}${metric('市盈率',d.pe,'')}${metric('市值',d.marketCap,'')}${metric('52周最高',d.week52High,d.currency)}${metric('52周最低',d.week52Low,d.currency)}</div>`;
+    <div class="pa-quote-popup__metrics">${metric('开盘价',d.open,d.currency)}${metric('最高价',d.high,d.currency)}${metric('最低价',d.low,d.currency)}${metric('成交量',d.volume,'')}${metric('市盈率',d.pe,'')}${metric('市值',d.marketCap,'')}${metric('52 周最高',d.week52High,d.currency)}${metric('52 周最低',d.week52Low,d.currency)}</div>`;
   card.querySelectorAll('[data-range]').forEach(btn => btn.addEventListener('click', () => loadDetail(btn.dataset.range)));
   card.querySelector('.pa-quote-popup__close').addEventListener('click', closeQuotePopup);
   renderChart(card.querySelector('.pa-quote-popup__chart'), d.points || [], tone);

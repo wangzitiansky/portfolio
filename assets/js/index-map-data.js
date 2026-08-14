@@ -3,6 +3,10 @@
 /** 内置指数关键词表（子串匹配 → 归一指数名），按优先级排序 */
 export const INDEX_KEYWORDS = [
   // 美股
+  { keyword: '标普500等权重', index: '标普500等权重' },
+  { keyword: '标普500等权', index: '标普500等权重' },
+  { keyword: 'S&P 500 Equal Weight', index: '标普500等权重' },
+  { keyword: 'SP500 Equal Weight', index: '标普500等权重' },
   { keyword: '标普500', index: '标普500' },
   { keyword: '纳斯达克100', index: '纳斯达克100' },
   { keyword: '道琼斯', index: '道琼斯' },
@@ -67,6 +71,11 @@ export const INDEX_ALIASES = {
   '1000': '中证1000',
   'zz1000': '中证1000',
   '标普': '标普500',
+  '标普等权重': '标普500等权重',
+  '标普500等权重': '标普500等权重',
+  '标普500等权': '标普500等权重',
+  's&p500equalweight': '标普500等权重',
+  'sp500equalweight': '标普500等权重',
   'sp500': '标普500',
   'spx': '标普500',
   '恒指': '恒生指数',
@@ -91,4 +100,9 @@ export const INDEX_ALIASES = {
   'nikkei': '日经225',
   '德指': '德国DAX',
   'dax': '德国DAX',
+};
+
+/** 已知基金代码 → 底层指数，用于基金清单或远程识别暂时不可用时的兜底。 */
+export const FUND_CODE_INDEX_OVERRIDES = {
+  '096001': '标普500等权重',
 };
