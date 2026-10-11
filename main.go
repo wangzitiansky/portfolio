@@ -301,7 +301,7 @@ func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, errors := buildSnapshot(holdings, r.URL.Query().Get("refresh_fx") == "1")
+	result, errors := buildSnapshotContext(r.Context(), holdings, r.URL.Query().Get("refresh_fx") == "1")
 	if result == nil {
 		writeJSON(w, 500, map[string]interface{}{"ok": false, "error": "快照计算失败", "errors": errors})
 		return
@@ -323,6 +323,13 @@ type snapshotResult struct {
 
 // buildSnapshot 是页面 API 和后台净值任务共用的行情计算入口。
 func buildSnapshot(holdings []Holding, forceFx bool) (*snapshotResult, []string) {
+	return buildSnapshotContext(context.Background(), holdings, forceFx)
+}
+
+func buildSnapshotContext(parent context.Context, holdings []Holding, forceFx bool) (*snapshotResult, []string) {
+	// 留出序列化响应的时间；取消时终止净值请求和排队任务。
+	ctx, cancel := context.WithTimeout(parent, 25*time.Second)
+	defer cancel()
 	start := time.Now()
 	var errors []string
 	var nonManual []struct{ Market, Code string }
@@ -371,7 +378,7 @@ func buildSnapshot(holdings []Holding, forceFx bool) (*snapshotResult, []string)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			navMap = fetchAllNavs(ofCodes)
+			navMap = fetchAllNavsContext(ctx, ofCodes)
 		}()
 	}
 
