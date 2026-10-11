@@ -9,7 +9,11 @@ export const INDEX_KEYWORDS = [
   { keyword: 'SP500 Equal Weight', index: '标普500等权重' },
   { keyword: '标普500', index: '标普500' },
   { keyword: '纳斯达克100', index: '纳斯达克100' },
-  { keyword: '道琼斯', index: '道琼斯' },
+  { keyword: '道琼斯工业平均指数', index: '道琼斯工业平均指数' },
+  { keyword: '道琼斯工业平均', index: '道琼斯工业平均指数' },
+  { keyword: 'Dow Jones Industrial Average', index: '道琼斯工业平均指数' },
+  { keyword: 'DJIA', index: '道琼斯工业平均指数' },
+  { keyword: '道琼斯', index: '道琼斯工业平均指数' },
   { keyword: '日经225', index: '日经225' },
   { keyword: '德国DAX', index: '德国DAX' },
   { keyword: '法国CAC40', index: '法国CAC40' },
@@ -94,15 +98,29 @@ export const INDEX_ALIASES = {
   '券商': '证券公司',
   '黄金': '黄金',
   'gold': '黄金',
-  '道指': '道琼斯',
-  'dji': '道琼斯',
+  '道琼斯': '道琼斯工业平均指数',
+  '道指': '道琼斯工业平均指数',
+  'dowjonesindustrialaverage': '道琼斯工业平均指数',
+  'djia': '道琼斯工业平均指数',
+  'dji': '道琼斯工业平均指数',
   '日经': '日经225',
   'nikkei': '日经225',
   '德指': '德国DAX',
   'dax': '德国DAX',
 };
 
-/** 已知基金代码 → 底层指数，用于基金清单或远程识别暂时不可用时的兜底。 */
-export const FUND_CODE_INDEX_OVERRIDES = {
-  '096001': '标普500等权重',
+/** 已知基金代码元数据，用于基金清单或远程识别暂时不可用时的兜底。 */
+export const FUND_CODE_OVERRIDES = {
+  '096001': { index: '标普500等权重' },
+  '513400': {
+    market: 'sh',
+    name: '道琼斯 ETF 鹏华',
+    type: 'etf',
+    index: '道琼斯工业平均指数',
+  },
 };
+
+/** 保留代码 → 指数接口，供现有调用和导入数据兼容使用。 */
+export const FUND_CODE_INDEX_OVERRIDES = Object.fromEntries(
+  Object.entries(FUND_CODE_OVERRIDES).map(([code, metadata]) => [code, metadata.index])
+);

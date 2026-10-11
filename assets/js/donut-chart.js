@@ -54,6 +54,16 @@ const INDEX_THEMES = [
     imageOpacity: 0.52,
   },
   {
+    id: 'dow-jones',
+    match: ['道琼斯工业平均指数', '道琼斯工业平均', '道琼斯', 'dow jones industrial average', 'djia', 'dji'],
+    name: '道琼斯工业平均指数',
+    code: 'DJIA',
+    brand: 'DJIA',
+    image: 'images/portfolio/wall-street-hero.jpg',
+    colors: ['#D5A84B', '#34486B'],
+    imageOpacity: 0.50,
+  },
+  {
     id: 'berkshire',
     match: ['伯克希尔', 'berkshire', 'brk.b', 'brkb'],
     name: '伯克希尔',

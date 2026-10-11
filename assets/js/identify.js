@@ -2,7 +2,7 @@
 
 import { getFundListCache, suggest, fetchNav } from './fund-suggest.js';
 import { mapIndex } from './index-map.js';
-import { FUND_CODE_INDEX_OVERRIDES } from './index-map-data.js';
+import { FUND_CODE_OVERRIDES } from './index-map-data.js';
 
 /** 股票代码段 → 市场映射 */
 const STOCK_SEGMENTS = {
@@ -134,6 +134,10 @@ export function getCandidates(code) {
 async function enrich(market, code, ambiguous, candidates, fundEntryOverride, forceStock = false) {
   let name = '', type = '', indexName = '', currency = 'CNY', priceSource = 'quote';
 	let suggestion = null;
+  const knownFund = forceStock ? null : (FUND_CODE_OVERRIDES[code] || null);
+
+  // 已知场内/场外基金代码使用确定市场，避免基金清单不可用时被误判为普通股票。
+  if (knownFund?.market) market = knownFund.market;
 
   // 货币推断
   if (market === 'us') currency = 'USD';
@@ -152,6 +156,8 @@ async function enrich(market, code, ambiguous, candidates, fundEntryOverride, fo
 	} else if (entry) {
       type = classifyType(entry.ftype);
       name = entry.name;
+    } else if (knownFund) {
+      type = knownFund.type || 'fund';
     } else {
       type = 'stock';
     }
@@ -167,7 +173,7 @@ async function enrich(market, code, ambiguous, candidates, fundEntryOverride, fo
 
   // 已知基金代码兜底：代码级映射优先于名称/远程结果，避免错误缓存覆盖明确的指数归类。
   const codeOverride = !forceStock && (market === 'sh' || market === 'sz' || market === 'of')
-    ? (FUND_CODE_INDEX_OVERRIDES[code] || '')
+    ? (knownFund?.index || '')
     : '';
   indexName = codeOverride;
 
@@ -195,6 +201,9 @@ async function enrich(market, code, ambiguous, candidates, fundEntryOverride, fo
     if (!name) name = code;
     if (name) indexName = mapIndex({ name, othername: '', type });
   }
+
+  // 已知基金使用统一展示名；外部名称仍参与上面的类型和指数识别。
+  if (knownFund?.name) name = knownFund.name;
 
   // 场外基金取净值
   let nav = null;
